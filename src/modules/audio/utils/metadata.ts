@@ -50,11 +50,8 @@ export function parseAudioTrackMetadata(
 	raw: Record<string, string>,
 	file?: File,
 ): AudioTrackMetadata {
-	const title = collectAndSplitMetadataValues(raw, [
-		"title",
-		"musicName",
-		"track",
-	]);
+	// TRACK is a track number (for example 06 or 6/12), not a song title.
+	const title = collectAndSplitMetadataValues(raw, ["title", "musicName"]);
 
 	let fileName = "";
 	if (file?.name) {

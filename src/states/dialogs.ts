@@ -18,6 +18,8 @@ export const replaceWordDialogAtom = atom(false);
 export const advancedSegmentationDialogAtom = atom(false);
 export const timeShiftDialogAtom = atom(false);
 export const syllableSmoothingDialogAtom = atom(false);
+export const shortSyllableMergeDialogAtom = atom(false);
+export const ttmlCleanupDialogAtom = atom(false);
 export const distributeRomanizationDialogAtom = atom(false);
 export const confirmDialogAtom = atom<{
 	open: boolean;

@@ -1,0 +1,13 @@
+{
+	"extends": "./tsconfig.app.json",
+	"compilerOptions": {
+		"types": ["node", "audioworklet", "wicg-file-system-access", "vite/client"]
+	},
+	"include": [
+		"src/modules/online-lyrics/**/*.test.ts",
+		"src/modules/ttml-cleanup/**/*.test.ts",
+		"src/modules/ttml-processor/**/*.test.ts",
+		"src/modules/segmentation/utils/short-syllable-merge.test.ts"
+	],
+	"exclude": []
+}

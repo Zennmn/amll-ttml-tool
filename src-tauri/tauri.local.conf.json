@@ -1,0 +1,43 @@
+{
+	"$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+	"productName": "AMLL TTML Tool Local",
+	"identifier": "net.stevexmh.amll-ttml-tool.local",
+	"build": {
+		"frontendDist": "../dist-desktop",
+		"beforeBuildCommand": "pnpm build:desktop"
+	},
+	"app": {
+		"windows": [
+			{
+				"title": "AMLL TTML Tool 本地版",
+				"label": "main",
+				"width": 1280,
+				"height": 800,
+				"minWidth": 800,
+				"minHeight": 600,
+				"resizable": true,
+				"center": true,
+				"visible": false,
+				"decorations": false,
+				"transparent": true,
+				"dragDropEnabled": false,
+				"windowEffects": { "effects": ["tabbed", "mica"] }
+			}
+		]
+	},
+	"bundle": {
+		"targets": ["nsis"],
+		"createUpdaterArtifacts": false,
+		"windows": {
+			"nsis": {
+				"installMode": "currentUser",
+				"languages": ["SimpChinese", "English"],
+				"displayLanguageSelector": false,
+				"startMenuFolder": "AMLL TTML Tool 本地版"
+			}
+		}
+	},
+	"plugins": {
+		"updater": { "endpoints": [] }
+	}
+}

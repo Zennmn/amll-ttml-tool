@@ -19,9 +19,11 @@ import { useAppUpdate } from "$/utils/useAppUpdate";
 
 export const SettingsAboutTab = () => {
 	const { t } = useTranslation();
-	const { status, update, progress, installUpdate } = useAppUpdate();
+	const { status, update, progress, installUpdate, isLocalDesktop } =
+		useAppUpdate();
 
-	const showUpdateCard = ["available", "downloading", "ready"].includes(status);
+	const showUpdateCard =
+		!isLocalDesktop && ["available", "downloading", "ready"].includes(status);
 
 	return (
 		<Flex direction="column" gap="4">
@@ -64,6 +66,22 @@ export const SettingsAboutTab = () => {
 					</Flex>
 				</Flex>
 			</Card>
+
+			{isLocalDesktop && (
+				<Card>
+					<Flex direction="column" gap="1">
+						<Heading size="3">
+							{t("settings.about.localDesktop", "本地桌面定制版")}
+						</Heading>
+						<Text size="2" color="gray">
+							{t(
+								"settings.about.localDesktopDescription",
+								"此版本已停用上游自动更新，请使用定制版提供的安装包更新。",
+							)}
+						</Text>
+					</Flex>
+				</Card>
+			)}
 
 			{showUpdateCard && (
 				<Card>

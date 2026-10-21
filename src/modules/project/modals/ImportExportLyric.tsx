@@ -84,7 +84,7 @@ export const ImportExportLyric = () => {
 						{t("topBar.menu.importLyric.fromPlainText", "从纯文本导入")}
 					</DropdownMenu.Item>
 					<DropdownMenu.Item onClick={() => setImportFromLRCLIBDialog(true)}>
-						{t("topBar.menu.importLyric.fromLRCLIB", "从 LRCLIB 导入...")}
+						{t("topBar.menu.importLyric.fromOnline", "从在线歌词源导入...")}
 					</DropdownMenu.Item>
 					<DropdownMenu.Item onClick={() => onImportLyric("lrc")}>
 						{t("topBar.menu.importLyric.fromLyRiC", "从 LyRiC 文件导入")}

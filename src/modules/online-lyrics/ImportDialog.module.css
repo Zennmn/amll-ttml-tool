@@ -1,0 +1,54 @@
+.dialogContent {
+	width: min(850px, calc(100vw - 32px));
+	max-width: 850px;
+	height: min(720px, calc(100dvh - 48px));
+	display: flex;
+	flex-direction: column;
+}
+.searchBar {
+	flex: 1;
+	min-width: 0;
+}
+.scrollArea {
+	flex: 1;
+	min-height: 0;
+}
+.resultList {
+	padding: var(--space-1);
+}
+.resultCard {
+	cursor: pointer;
+	text-align: left;
+	width: 100%;
+}
+.resultCard:hover {
+	background: var(--gray-3);
+}
+.resultCard:focus-visible {
+	outline: 2px solid var(--accent-9);
+}
+.trackInfo {
+	flex: 1;
+	min-width: 0;
+}
+.emptyState {
+	min-height: 160px;
+	align-items: center;
+	justify-content: center;
+	color: var(--gray-11);
+	text-align: center;
+}
+.previewDialogContent {
+	max-width: 680px;
+	max-height: calc(100dvh - 48px);
+	overflow: auto;
+}
+.previewTextArea {
+	height: min(380px, 45dvh);
+	font-family: var(--code-font-family);
+	white-space: pre-wrap;
+}
+.candidateSelect {
+	width: 100%;
+	margin-bottom: var(--space-3);
+}

@@ -53,6 +53,7 @@ import {
 	keyBindingTriggerModeAtom,
 } from "$/utils/keybindings";
 import { SettingsGroup, SettingsRow } from "./SettingsGroup";
+import { TtmlExportOptions } from "./TtmlExportOptions";
 
 const languageOptions: readonly string[] = Object.keys(resources);
 const textFieldActionStyle = { width: "min(220px, 100%)" };
@@ -191,6 +192,7 @@ export const SettingsCommonTab = () => {
 			</SettingsGroup>
 
 			<SettingsGroup title={t("settings.group.translationOutput", "导出")}>
+				<TtmlExportOptions />
 				<SettingsRow
 					icon={<Translate24Regular />}
 					title={t("settings.common.translationOutputMode", "歌词导出方式")}

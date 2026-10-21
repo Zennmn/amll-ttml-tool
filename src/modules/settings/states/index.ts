@@ -1,4 +1,5 @@
 import { atomWithStorage } from "jotai/utils";
+import type { TtmlTimingMode } from "$/modules/ttml-processor/export-options";
 
 export enum SyncJudgeMode {
 	FirstKeyDownTime = "first-keydown-time",
@@ -32,6 +33,17 @@ export const translationOutputModeAtom = atomWithStorage(
 	"translationOutputMode",
 	TranslationOutputMode.AppleMusic,
 );
+
+export const ttmlTimingModeAtom = atomWithStorage<TtmlTimingMode>(
+	"ttmlTimingMode",
+	"auto",
+	undefined,
+	{ getOnInit: true },
+);
+
+export const ttmlLanguageAtom = atomWithStorage("ttmlLanguage", "", undefined, {
+	getOnInit: true,
+});
 
 export const showWordRomanizationInputAtom = atomWithStorage(
 	"showWordRomanizationInput",

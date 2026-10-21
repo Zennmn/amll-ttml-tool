@@ -1,7 +1,14 @@
 import { Button, DropdownMenu } from "@radix-ui/themes";
+import { useSetAtom } from "jotai";
 import { Toolbar } from "radix-ui";
 import type { CSSProperties } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import { toast } from "react-toastify";
+import { fillMissingTranslationsAtom } from "$/modules/ttml-cleanup/editor-state.ts";
+import {
+	shortSyllableMergeDialogAtom,
+	ttmlCleanupDialogAtom,
+} from "$/states/dialogs.ts";
 import { useTopMenuActions } from "../useTopMenuActions";
 
 type ToolMenuProps = {
@@ -13,9 +20,35 @@ type ToolMenuProps = {
 const ToolMenuItems = () => {
 	const { t } = useTranslation();
 	const menu = useTopMenuActions();
+	const setCleanupOpen = useSetAtom(ttmlCleanupDialogAtom);
+	const setShortSyllableMergeOpen = useSetAtom(shortSyllableMergeDialogAtom);
+	const fillMissingTranslations = useSetAtom(fillMissingTranslationsAtom);
 
 	return (
 		<>
+			<DropdownMenu.Item onSelect={() => setCleanupOpen(true)}>
+				{t("ttmlCleanup.menu", "整理 TTML 歌词...")}
+			</DropdownMenu.Item>
+			<DropdownMenu.Item
+				onSelect={() => {
+					const result = fillMissingTranslations();
+					if (result.changed) {
+						toast.success(
+							t(
+								"translationFill.applied",
+								"已用原文补齐 {count} 行缺失翻译。可用 Ctrl+Z 撤销。",
+								{ count: result.filledLines },
+							),
+						);
+					} else {
+						toast.info(
+							t("translationFill.noChanges", "当前歌词没有缺失的翻译"),
+						);
+					}
+				}}
+			>
+				{t("translationFill.menu", "用原文补齐缺失翻译")}
+			</DropdownMenu.Item>
 			<DropdownMenu.Sub>
 				<DropdownMenu.SubTrigger>
 					{t("topBar.menu.segmentationTools", "分词")}
@@ -34,6 +67,9 @@ const ToolMenuItems = () => {
 			</DropdownMenu.Sub>
 			<DropdownMenu.Item onSelect={menu.onOpenSyllableSmoothing}>
 				{t("topBar.menu.syllableSmoothing", "平滑时间轴...")}
+			</DropdownMenu.Item>
+			<DropdownMenu.Item onSelect={() => setShortSyllableMergeOpen(true)}>
+				{t("shortSyllableMerge.menu", "合并过短音节...")}
 			</DropdownMenu.Item>
 			<DropdownMenu.Item onSelect={menu.onSyncLineTimestamps}>
 				{t("topBar.menu.syncLineTimestamps", "同步行时间戳")}

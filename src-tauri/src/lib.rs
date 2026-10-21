@@ -1,3 +1,5 @@
+mod online_lyrics;
+
 #[derive(serde::Serialize)]
 struct OpenFileData {
     pub filename: String,
@@ -26,6 +28,31 @@ fn get_open_file_data() -> Option<OpenFileData> {
     None
 }
 
+#[tauri::command]
+async fn online_lyrics_search(
+    state: tauri::State<'_, online_lyrics::OnlineLyricsService>,
+    provider: String,
+    query: String,
+    page: u32,
+) -> Result<online_lyrics::OnlineSearchPage, String> {
+    state
+        .search(provider, query, page)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn online_lyrics_fetch(
+    state: tauri::State<'_, online_lyrics::OnlineLyricsService>,
+    track: online_lyrics::OnlineTrack,
+    candidate: Option<online_lyrics::LyricCandidate>,
+) -> Result<online_lyrics::OnlineLyrics, String> {
+    state
+        .fetch(track, candidate)
+        .await
+        .map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 #[allow(clippy::missing_panics_doc)]
 pub fn run() {
@@ -33,7 +60,8 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_decorum::init())
-        .plugin(tauri_plugin_process::init());
+        .plugin(tauri_plugin_process::init())
+        .manage(online_lyrics::OnlineLyricsService::default());
 
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
     {
@@ -69,7 +97,11 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_open_file_data,])
+        .invoke_handler(tauri::generate_handler![
+            get_open_file_data,
+            online_lyrics_search,
+            online_lyrics_fetch,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

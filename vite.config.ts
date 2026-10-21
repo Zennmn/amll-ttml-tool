@@ -52,7 +52,7 @@ const plugins: PluginOption = [
 	},
 	VitePWA({
 		injectRegister: null,
-		disable: !!process.env.TAURI_PLATFORM,
+		disable: !!process.env.TAURI_ENV_PLATFORM,
 		workbox: {
 			globPatterns: ["**/*.{js,css,html,wasm}"],
 			maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,

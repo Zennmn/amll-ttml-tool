@@ -1,8 +1,10 @@
+import { isPunctuationOnly } from "$/modules/segmentation/utils/Transliteration/TransliterationUtils";
 import {
 	TranslationOutputMode,
 	translationOutputModeAtom,
+	ttmlLanguageAtom,
+	ttmlTimingModeAtom,
 } from "$/modules/settings/states";
-import { isPunctuationOnly } from "$/modules/segmentation/utils/Transliteration/TransliterationUtils";
 import { globalStore } from "$/states/store.ts";
 import type {
 	LyricLine as AppLyricLine,
@@ -10,6 +12,8 @@ import type {
 	TTMLLyric as AppTTMLLyric,
 	TTMLMetadata as AppTTMLMetadata,
 } from "$/types/ttml";
+import { normalizeTtmlExport } from "./export-format";
+import { normalizeTtmlLanguage } from "./export-options";
 import type {
 	AmllLyricLine,
 	AmllLyricResult,
@@ -35,8 +39,8 @@ export type Result<T> =
 	| { success: true; data: T }
 	| { success: false; error: JsError };
 
-/** 需要在导入时剔除的元数据键 */
-const IGNORED_METADATA_KEYS = new Set(["timingMode", "language"]);
+/** 计时模式由当前歌词重新判断；原文语言需要保留供导出使用。 */
+const IGNORED_METADATA_KEYS = new Set(["timingMode"]);
 
 /** 导入时需要重命名的元数据键 */
 const RENAMED_METADATA_KEYS: Record<string, string> = {
@@ -59,10 +63,14 @@ const EXPORT_RENAMED_METADATA_KEYS: Record<string, string> = {
  *   `x-translation` / `x-roman`
  */
 export function getDefaultGeneratorConfig(): Partial<GeneratorConfig> {
+	const timingMode = globalStore.get(ttmlTimingModeAtom);
 	return {
 		useAppleFormatRules:
 			globalStore.get(translationOutputModeAtom) ===
 			TranslationOutputMode.AppleMusic,
+		lineTiming:
+			timingMode === "line" ? true : timingMode === "word" ? false : undefined,
+		language: normalizeTtmlLanguage(globalStore.get(ttmlLanguageAtom)),
 	};
 }
 
@@ -98,7 +106,21 @@ export function generateTTML(
 	result: TTMLResult,
 	config?: Partial<GeneratorConfig>,
 ): Result<string> {
-	return rawGenerateTtml(result, config) as Result<string>;
+	const { language, ...generatorConfig } = withDefaultGeneratorConfig(config);
+	const lineTiming =
+		generatorConfig.lineTiming ?? result.metadata.timingMode === "Line";
+	const generated = rawGenerateTtml(result, {
+		...generatorConfig,
+		lineTiming,
+	}) as Result<string>;
+	if (!generated.success) return generated;
+	return {
+		success: true,
+		data: normalizeTtmlExport(generated.data, {
+			lineTiming,
+			language: normalizeTtmlLanguage(language ?? ""),
+		}),
+	};
 }
 //#endregion
 
@@ -286,15 +308,21 @@ export function amllToTTML(
 	config?: Partial<GeneratorConfig>,
 ): Result<string> {
 	const processedAmllResult = postProcessLyricLines(amllResult);
-	const lineTiming = isLineTimingLyrics(amllResult);
-	return rawAmllToTtml(
-		processedAmllResult,
-		options,
-		withDefaultGeneratorConfig({
+	const { language, ...generatorConfig } = withDefaultGeneratorConfig(config);
+	const lineTiming =
+		generatorConfig.lineTiming ?? isLineTimingLyrics(amllResult);
+	const generated = rawAmllToTtml(processedAmllResult, options, {
+		...generatorConfig,
+		lineTiming,
+	}) as Result<string>;
+	if (!generated.success) return generated;
+	return {
+		success: true,
+		data: normalizeTtmlExport(generated.data, {
 			lineTiming,
-			...config,
+			language: normalizeTtmlLanguage(language ?? ""),
 		}),
-	) as Result<string>;
+	};
 }
 
 /**

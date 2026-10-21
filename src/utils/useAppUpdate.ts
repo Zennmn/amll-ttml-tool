@@ -12,6 +12,7 @@ import {
 import { createLogger } from "./logger";
 
 const updateLogger = createLogger("AppUpdate");
+const isLocalDesktopBuild = import.meta.env.AMLL_LOCAL_DESKTOP === "true";
 
 export function useAppUpdate() {
 	const [status, setStatus] = useAtom(updateStatusAtom);
@@ -24,6 +25,7 @@ export function useAppUpdate() {
 
 	const checkUpdate = useCallback(
 		async (silent = false) => {
+			if (isLocalDesktopBuild) return;
 			const currentStatus = store.get(updateStatusAtom);
 			if (currentStatus === "checking" || currentStatus === "downloading")
 				return;
@@ -52,7 +54,7 @@ export function useAppUpdate() {
 	);
 
 	const installUpdate = useCallback(async () => {
-		if (!update) return;
+		if (isLocalDesktopBuild || !update) return;
 
 		setStatus("downloading");
 		setProgress(0);
@@ -101,5 +103,6 @@ export function useAppUpdate() {
 		errorMsg,
 		checkUpdate,
 		installUpdate,
+		isLocalDesktop: isLocalDesktopBuild,
 	};
 }

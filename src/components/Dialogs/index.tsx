@@ -1,6 +1,7 @@
 import { LatencyTestDialog } from "$/modules/audio/modals/LatencyTest.tsx";
 import { ImportFromLRCLIB } from "$/modules/lrclib/modals/ImportDialog.tsx";
 import { ReplaceWordDialog } from "$/modules/lyric-editor/tools/ReplaceWordDialog.tsx";
+import { ShortSyllableMergeDialog } from "$/modules/lyric-editor/tools/ShortSyllableMergeDialog.tsx";
 import { SyllableSmoothingDialog } from "$/modules/lyric-editor/tools/SyllableSmoothingDialog.tsx";
 import { TimeShiftDialog } from "$/modules/lyric-editor/tools/TimeShift.tsx";
 import { DistributeRomanizationDialog } from "$/modules/project/modals/DistributeRomanization.tsx";
@@ -11,6 +12,7 @@ import { SubmitToAMLLDBDialog } from "$/modules/project/modals/SubmitToAmll.tsx"
 import { AdvancedSegmentationDialog } from "$/modules/segmentation/components/AdvancedSegmentation.tsx";
 import { SplitWordDialog } from "$/modules/segmentation/components/split-word.tsx";
 import { SettingsDialog } from "$/modules/settings/modals/index.tsx";
+import { TtmlCleanupDialog } from "$/modules/ttml-cleanup/TtmlCleanupDialog.tsx";
 import { ConfirmationDialog } from "./confirmation.tsx";
 import { TtmlErrorDialog } from "./TtmlErrorDialog.tsx";
 
@@ -30,6 +32,8 @@ export const Dialogs = () => {
 			<AdvancedSegmentationDialog />
 			<TimeShiftDialog />
 			<SyllableSmoothingDialog />
+			<ShortSyllableMergeDialog />
+			<TtmlCleanupDialog />
 			<DistributeRomanizationDialog />
 			<TtmlErrorDialog />
 		</>

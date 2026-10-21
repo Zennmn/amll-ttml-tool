@@ -296,6 +296,7 @@ class AudioEngineWrapper extends EventTarget {
 		globalStore.set(loadedAudioAtom, src);
 		await this.engine.loadFile(src);
 		this.updateAudioTrackMetadata(src);
+		this.dispatchEvent(new Event("track-metadata-change"));
 
 		return this.mapAudioMetadataToTTML();
 	}

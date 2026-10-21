@@ -10,9 +10,15 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-desktop
+/desktop-app/
 *.local
 **/target
 /.tauri
+/.local-runtime/
+/.planning/
+/.codegraph/
+__pycache__/
 
 # Editor directories and files
 .vscode/*
