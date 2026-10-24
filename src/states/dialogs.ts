@@ -20,6 +20,7 @@ export const timeShiftDialogAtom = atom(false);
 export const syllableSmoothingDialogAtom = atom(false);
 export const shortSyllableMergeDialogAtom = atom(false);
 export const ttmlCleanupDialogAtom = atom(false);
+export const ttmlLanguageDialogAtom = atom(false);
 export const distributeRomanizationDialogAtom = atom(false);
 export const confirmDialogAtom = atom<{
 	open: boolean;

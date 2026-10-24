@@ -9,13 +9,27 @@
  * https://github.com/amll-dev/amll-ttml-tool/blob/main/LICENSE
  */
 
-import { useCurrentLocation } from "$/modules/lyric-editor/utils/lyric-states.ts";
 import {
-	displayRomanizationInSyncAtom,
+	Checkbox,
+	Flex,
+	Grid,
+	Select,
+	Slider,
+	Text,
+	TextField,
+} from "@radix-ui/themes";
+import { useAtom } from "jotai";
+import { useSetImmerAtom } from "jotai-immer";
+import { type FC, forwardRef } from "react";
+import { useTranslation } from "react-i18next";
+import { JapanesePronunciationStatus } from "$/modules/japanese-reading/useJapaneseReadings";
+import { useCurrentLocation } from "$/modules/lyric-editor/utils/lyric-states.ts";
+import type { SyncPronunciationMode } from "$/modules/lyric-editor/utils/sync-pronunciation.ts";
+import {
 	highlightActiveWordAtom,
 	highlightErrorsAtom,
 	showTimestampsAtom,
-	showWordRomanizationInputAtom,
+	syncPronunciationModeAtom,
 } from "$/modules/settings/states/index.ts";
 import {
 	currentEmptyBeatAtom,
@@ -29,18 +43,6 @@ import {
 	keySyncStartAtom,
 } from "$/states/keybindings.ts";
 import { bgLyricIgnoreSyncAtom, lyricLinesAtom } from "$/states/main.ts";
-import {
-	Checkbox,
-	Flex,
-	Grid,
-	Slider,
-	Text,
-	TextField,
-} from "@radix-ui/themes";
-import { useAtom, useAtomValue } from "jotai";
-import { useSetImmerAtom } from "jotai-immer";
-import { type FC, forwardRef } from "react";
-import { useTranslation } from "react-i18next";
 import { KeyBinding } from "../KeyBinding/index.tsx";
 import { RibbonFrame, RibbonSection } from "./common";
 
@@ -83,18 +85,23 @@ export const SyncModeRibbonBar: FC = forwardRef<HTMLDivElement>(
 		const [highlightActiveWord, setHighlightActiveWord] = useAtom(
 			highlightActiveWordAtom,
 		);
-		const [displayRomanizationInSync, setdisplayRomanizationInSync] = useAtom(
-			displayRomanizationInSyncAtom,
+		const [syncPronunciationMode, setSyncPronunciationMode] = useAtom(
+			syncPronunciationModeAtom,
 		);
 		const [bgLyricIgnoreSync, setBgLyricIgnoreSync] = useAtom(
 			bgLyricIgnoreSyncAtom,
 		);
 		const editLyricLines = useSetImmerAtom(lyricLinesAtom);
-		const showWordRomanizationInput = useAtomValue(
-			showWordRomanizationInputAtom,
-		);
 		const [syncTimeOffset, setSyncTimeOffset] = useAtom(syncTimeOffsetAtom);
 		const { t } = useTranslation();
+		const pronunciationTitle = t(
+			"ribbonBar.syncMode.pronunciationDisplay",
+			"发音显示",
+		);
+		const pronunciationHint = t(
+			"ribbonBar.syncMode.pronunciationHint",
+			"没有音译时自动识别日语发音，已有音译优先；原文和时间轴保持不变。",
+		);
 
 		return (
 			<RibbonFrame ref={ref}>
@@ -191,21 +198,41 @@ export const SyncModeRibbonBar: FC = forwardRef<HTMLDivElement>(
 							checked={highlightErrors}
 							onCheckedChange={(v) => setHighlightErrors(!!v)}
 						/>
-						{showWordRomanizationInput && (
-							<>
-								<Text wrap="nowrap" size="1">
+						<Text wrap="nowrap" size="1" title={pronunciationHint}>
+							{pronunciationTitle}
+						</Text>
+						<Select.Root
+							size="1"
+							value={syncPronunciationMode}
+							onValueChange={(value) =>
+								setSyncPronunciationMode(value as SyncPronunciationMode)
+							}
+						>
+							<Select.Trigger
+								aria-label={pronunciationTitle}
+								title={pronunciationHint}
+								style={{ width: "100%" }}
+							/>
+							<Select.Content>
+								<Select.Item value="off">
+									{t("ribbonBar.syncMode.pronunciationModeOff", "关闭")}
+								</Select.Item>
+								<Select.Item value="original-primary">
 									{t(
-										"ribbonBar.syncMode.showPerWordRomanization",
-										"显示逐字音译",
+										"ribbonBar.syncMode.pronunciationModeOriginalPrimary",
+										"原文在上",
 									)}
-								</Text>
-								<Checkbox
-									checked={displayRomanizationInSync}
-									onCheckedChange={(v) => setdisplayRomanizationInSync(!!v)}
-								/>
-							</>
-						)}
+								</Select.Item>
+								<Select.Item value="romanization-primary">
+									{t(
+										"ribbonBar.syncMode.pronunciationModeRomanizationPrimary",
+										"罗马音在上",
+									)}
+								</Select.Item>
+							</Select.Content>
+						</Select.Root>
 					</Grid>
+					<JapanesePronunciationStatus />
 				</RibbonSection>
 				<RibbonSection
 					label={t("ribbonBar.syncMode.keyBindingReference", "打轴键位速查")}

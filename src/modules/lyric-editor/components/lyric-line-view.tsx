@@ -41,6 +41,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { LyricLineMenu } from "$/components/Menus/lyric-line-menu.tsx";
+import { useJapaneseReadings } from "$/modules/japanese-reading/useJapaneseReadings";
 import { predictLineRomanization } from "$/modules/segmentation/utils/Transliteration/distributor";
 import {
 	enableAutoRomanizationPredictionAtom,
@@ -48,6 +49,7 @@ import {
 	showLineTranslationAtom,
 	showTimestampsAtom,
 	showWordRomanizationInputAtom,
+	syncPronunciationModeAtom,
 } from "$/modules/settings/states/index.ts";
 import { visualizeTimestampUpdateAtom } from "$/modules/settings/states/sync.ts";
 import {
@@ -62,6 +64,7 @@ import {
 } from "$/states/main.ts";
 import { type LyricLine, newLyricLine, newLyricWord } from "$/types/ttml.ts";
 import { msToTimestamp } from "$/utils/timestamp.ts";
+import { getAlignedSyncRomanization } from "../utils/sync-pronunciation";
 import styles from "./index.module.css";
 import LyricWordView from "./lyric-word-view.tsx";
 import { RomanWordView } from "./roman-word-view.tsx";
@@ -327,6 +330,9 @@ export const LyricLineView: FC<{
 	);
 	const editingRomanWordIndex = useAtomValue(editingRomanWordIndexAtom);
 	const enablePrediction = useAtomValue(enableAutoRomanizationPredictionAtom);
+	const pronunciationMode = useAtomValue(syncPronunciationModeAtom);
+	const showSyncPronunciation =
+		toolMode === ToolMode.Sync && pronunciationMode !== "off";
 
 	const startTimeRef = useRef<HTMLDivElement>(null);
 	const endTimeRef = useRef<HTMLButtonElement>(null);
@@ -412,12 +418,33 @@ export const LyricLineView: FC<{
 	}, [endTimeLinked, line.endTimeLink]);
 
 	const suggestedRomans = useMemo(() => {
-		if (!enablePrediction) {
+		if (!enablePrediction && !showSyncPronunciation) {
 			return [];
 		}
-
-		return predictLineRomanization(line.words, line.romanLyric || "");
-	}, [line.romanLyric, line.words, enablePrediction]);
+		if (showSyncPronunciation) {
+			// Preserve explicitly separated readings such as "mu chuu". The
+			// prediction algorithm can split a long vowel across unrelated kanji.
+			const aligned = getAlignedSyncRomanization(
+				line.words,
+				line.romanLyric || "",
+			);
+			if (aligned) return aligned;
+			if (!enablePrediction || !line.romanLyric?.trim()) return [];
+		}
+		try {
+			return predictLineRomanization(line.words, line.romanLyric || "");
+		} catch {
+			return [];
+		}
+	}, [line.romanLyric, line.words, enablePrediction, showSyncPronunciation]);
+	const automaticRomans = useJapaneseReadings(
+		line.words.map((word) => word.word),
+		showSyncPronunciation &&
+			line.words.some(
+				(word, index) =>
+					!word.romanWord?.trim() && !suggestedRomans[index]?.trim(),
+			),
+	);
 
 	const onToggleEndTimeLink = useCallback(
 		(evt: React.MouseEvent<HTMLButtonElement>) => {
@@ -606,6 +633,12 @@ export const LyricLineView: FC<{
 														wordIndex={wi}
 														line={line}
 														lineIndex={lineIndex}
+														suggestedRoman={
+															showSyncPronunciation
+																? suggestedRomans[wi]
+																: undefined
+														}
+														automaticRoman={automaticRomans[wi]}
 													/>
 													{toolMode === ToolMode.Edit &&
 														showWordRomanizationInput && (

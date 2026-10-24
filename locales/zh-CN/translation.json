@@ -1,4 +1,8 @@
 {
+	"ttmlExportMenu": {
+		"customLanguageDescription": "设置 TTML 原文语言代码，例如 pt-BR。留空时跟随原文件，仅影响导出，不改变翻译语言。",
+		"invalidLanguage": "请输入有效的语言代码，例如 pt-BR，或留空以跟随原文件。"
+	},
 	"ttmlCleanup": {
 		"menu": "整理当前歌词...",
 		"title": "整理当前歌词",
@@ -163,6 +167,15 @@
 			"highlightActiveWord": "高亮当前音节",
 			"highlightErrors": "高亮错误",
 			"showPerWordRomanization": "显示逐字音译",
+			"pronunciationDisplay": "发音显示",
+			"pronunciationHint": "没有音译时自动识别日语发音，已有音译优先；原文和时间轴保持不变。",
+			"pronunciationAutomatic": "无音译时自动注音",
+			"pronunciationLoading": "正在生成发音…",
+			"pronunciationFailed": "发音生成失败",
+			"pronunciationRetry": "重试",
+			"pronunciationModeOff": "关闭",
+			"pronunciationModeOriginalPrimary": "原文在上",
+			"pronunciationModeRomanizationPrimary": "罗马音在上",
 			"keyBindingReference": "打轴键位速查",
 			"startSync": "起始轴",
 			"continuousSync": "连续轴",
@@ -633,6 +646,36 @@
 		"emptyBeatSymbol": "空拍符号"
 	},
 	"metadataDialog": {
+		"appleMusic": {
+			"title": "从 Apple Music 导入",
+			"description": "粘贴 Apple Music 歌曲链接，获取歌名、歌手、专辑和 Apple Music ID。空字段默认勾选；勾选已有值的字段会替换该值。ISRC 和词曲作者需另行填写。",
+			"urlLabel": "Apple Music 歌曲链接",
+			"urlPlaceholder": "https://music.apple.com/…",
+			"fetch": "获取歌曲信息",
+			"retry": "重新获取",
+			"loading": "正在获取…",
+			"back": "返回",
+			"previewTitle": "导入预览",
+			"fieldHeader": "字段",
+			"existingHeader": "当前值",
+			"noIncoming": "未提供",
+			"noExisting": "未设置",
+			"releaseDate": "发行日期：{date}",
+			"duration": "时长：{duration}",
+			"apply": "导入所选字段",
+			"imported": "已导入所选元数据",
+			"unchanged": "所选元数据已是最新",
+			"errors": {
+				"invalidLink": "链接格式不正确，请输入 Apple Music 歌曲链接。",
+				"albumLink": "请在专辑中选择具体歌曲，再复制歌曲的分享链接。",
+				"notFound": "在链接对应的 Apple Music 地区找不到这首歌，可能已下架或不可用。",
+				"invalidResponse": "Apple Music 返回了无法读取的歌曲信息，请稍后重试。",
+				"network": "网络连接失败，请检查网络后重试。",
+				"timeout": "请求超时，请稍后重试。",
+				"rateLimited": "请求过于频繁，请稍后重试。",
+				"unknown": "获取歌曲信息失败，请稍后重试。"
+			}
+		},
 		"emptyItem": "此项尚未添加任何条目",
 		"openLink": "打开链接",
 		"duplicateMsg": "存在重复的元数据值",

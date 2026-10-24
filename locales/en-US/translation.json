@@ -1,4 +1,8 @@
 {
+	"ttmlExportMenu": {
+		"customLanguageDescription": "Set the TTML original language code, for example pt-BR. Leave blank to follow the source file. This only affects exports and does not change translation languages.",
+		"invalidLanguage": "Enter a valid language code, for example pt-BR, or leave blank to follow the source file."
+	},
 	"ttmlCleanup": {
 		"menu": "Clean up current lyrics...",
 		"title": "Clean up current lyrics",
@@ -163,6 +167,15 @@
 			"highlightActiveWord": "Highlight Active Word",
 			"highlightErrors": "Highlight Errors",
 			"showPerWordRomanization": "Show Per-Word Romanization",
+			"pronunciationDisplay": "Pronunciation",
+			"pronunciationHint": "Automatically read Japanese when romanization is missing. Existing readings take priority; original text and timings stay unchanged.",
+			"pronunciationAutomatic": "Automatic Japanese readings",
+			"pronunciationLoading": "Generating pronunciation…",
+			"pronunciationFailed": "Pronunciation unavailable",
+			"pronunciationRetry": "Retry",
+			"pronunciationModeOff": "Off",
+			"pronunciationModeOriginalPrimary": "Original on top",
+			"pronunciationModeRomanizationPrimary": "Romaji on top",
 			"keyBindingReference": "Hotkey Cheatsheet",
 			"startSync": "Mark Begin",
 			"continuousSync": "Commit",
@@ -633,6 +646,36 @@
 		"emptyBeatSymbol": "Empty Beat Symbol"
 	},
 	"metadataDialog": {
+		"appleMusic": {
+			"title": "Import from Apple Music",
+			"description": "Paste an Apple Music song link to fetch its title, artists, album and Apple Music ID. Empty fields are selected by default. Selecting a field with an existing value replaces it. ISRC and songwriting credits must be entered separately.",
+			"urlLabel": "Apple Music song link",
+			"urlPlaceholder": "https://music.apple.com/…",
+			"fetch": "Fetch song information",
+			"retry": "Fetch again",
+			"loading": "Fetching…",
+			"back": "Back",
+			"previewTitle": "Import preview",
+			"fieldHeader": "Field",
+			"existingHeader": "Current value",
+			"noIncoming": "Not provided",
+			"noExisting": "Not set",
+			"releaseDate": "Released: {date}",
+			"duration": "Duration: {duration}",
+			"apply": "Import selected fields",
+			"imported": "Selected metadata imported",
+			"unchanged": "Selected metadata is already up to date",
+			"errors": {
+				"invalidLink": "Enter a valid Apple Music song link.",
+				"albumLink": "Select a specific song in the album and copy its share link.",
+				"notFound": "This song was not found in the link's Apple Music region. It may be unavailable or removed.",
+				"invalidResponse": "Apple Music returned unreadable song information. Please try again later.",
+				"network": "The connection failed. Check your network and try again.",
+				"timeout": "The request timed out. Please try again later.",
+				"rateLimited": "Too many requests. Please try again later.",
+				"unknown": "Could not fetch song information. Please try again later."
+			}
+		},
 		"emptyItem": "No entries have been added to this section yet.",
 		"openLink": "Open link",
 		"duplicateMsg": "Found duplicate metadata values",

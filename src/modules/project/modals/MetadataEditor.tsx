@@ -18,7 +18,7 @@ import {
 	TextField,
 } from "@radix-ui/themes";
 import { AnimatePresence, motion } from "framer-motion";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useImmerAtom } from "jotai-immer";
 import {
 	memo,
@@ -30,9 +30,12 @@ import {
 	useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "react-toastify";
 import { metadataEditorDialogAtom } from "$/states/dialogs.ts";
-import { lyricLinesAtom } from "$/states/main.ts";
+import { lyricLinesAtom, projectIdAtom } from "$/states/main.ts";
 import type { TTMLLyric, TTMLMetadata } from "$/types/ttml";
+import { importAppleMusicMetadataAtom } from "../logic/apple-music-metadata-state";
+import { AppleMusicMetadataImport } from "./AppleMusicMetadataImport";
 import styles from "./MetadataEditor.module.css";
 import {
 	AppleMusicIcon,
@@ -235,6 +238,7 @@ const MetadataItemEditor = memo(
 
 						return (
 							<Flex
+								// biome-ignore lint/suspicious/noArrayIndexKey: Editable string slots have no stable IDs and may contain duplicates.
 								key={`${option.value}-${index}`}
 								gap="2"
 								align="center"
@@ -347,6 +351,9 @@ export const MetadataEditor = () => {
 	);
 	const [customKey, setCustomKey] = useState("");
 	const [lyricLines, setLyricLines] = useImmerAtom(lyricLinesAtom);
+	const projectId = useAtomValue(projectIdAtom);
+	const importAppleMusicMetadata = useSetAtom(importAppleMusicMetadataAtom);
+	const [appleMusicImportOpen, setAppleMusicImportOpen] = useState(false);
 
 	const { t } = useTranslation();
 
@@ -355,7 +362,7 @@ export const MetadataEditor = () => {
 		const alphanumeric = (value: string) => /^[a-zA-Z0-9]+$/.test(value);
 
 		const getPlatformUrl = (key: string, value: string) => {
-			if (!value || !value.trim()) return null;
+			if (!value?.trim()) return null;
 
 			switch (key) {
 				case "ncmMusicId":
@@ -571,6 +578,7 @@ export const MetadataEditor = () => {
 			}
 		});
 		setActiveKey(nextKey);
+		setAppleMusicImportOpen(false);
 		setCustomKey("");
 	}, [customKey, setLyricLines]);
 
@@ -584,7 +592,10 @@ export const MetadataEditor = () => {
 	return (
 		<Dialog.Root
 			open={metadataEditorDialog}
-			onOpenChange={setMetadataEditorDialog}
+			onOpenChange={(open) => {
+				setMetadataEditorDialog(open);
+				if (!open) setAppleMusicImportOpen(false);
+			}}
 		>
 			<Dialog.Content className={styles.dialogContent}>
 				<Dialog.Title className={styles.srOnly}>
@@ -596,8 +607,22 @@ export const MetadataEditor = () => {
 						{t("metadataDialog.title", "元数据编辑器")}
 					</Text>
 					<nav className={styles.navList}>
+						<button
+							type="button"
+							className={styles.navItem}
+							data-active={appleMusicImportOpen || undefined}
+							onClick={() => setAppleMusicImportOpen(true)}
+						>
+							<span className={styles.navIcon}>
+								<AppleMusicIcon />
+							</span>
+							<span className={styles.navItemText}>
+								{t("metadataDialog.appleMusic.title", "从 Apple Music 导入")}
+							</span>
+						</button>
 						{navOptions.map((option) => {
-							const selected = activeOption?.value === option.value;
+							const selected =
+								!appleMusicImportOpen && activeOption?.value === option.value;
 							const entry = lyricLines.metadata.find(
 								(metadata) => metadata.key === option.value,
 							);
@@ -610,7 +635,10 @@ export const MetadataEditor = () => {
 									type="button"
 									className={styles.navItem}
 									data-active={selected || undefined}
-									onClick={() => setActiveKey(option.value)}
+									onClick={() => {
+										setAppleMusicImportOpen(false);
+										setActiveKey(option.value);
+									}}
 								>
 									<span className={styles.navIcon}>{option.icon}</span>
 									<span className={styles.navItemText}>{option.label}</span>
@@ -643,9 +671,11 @@ export const MetadataEditor = () => {
 					<header className={styles.header}>
 						<div className={styles.titleBlock}>
 							<Heading size="7" className={styles.pageTitle}>
-								{activeOption?.label}
+								{appleMusicImportOpen
+									? t("metadataDialog.appleMusic.title", "从 Apple Music 导入")
+									: activeOption?.label}
 							</Heading>
-							{activeOption && (
+							{activeOption && !appleMusicImportOpen && (
 								<Text size="2" color="gray" className={styles.titleMeta}>
 									{activeOption.value}
 								</Text>
@@ -654,24 +684,57 @@ export const MetadataEditor = () => {
 					</header>
 
 					<div className={styles.scrollContent}>
-						<AnimatePresence mode="wait" initial={false}>
-							{activeOption && (
-								<motion.div
-									key={activeOption.value}
-									className={styles.contentTransition}
-									variants={contentVariants}
-									initial="initial"
-									animate="animate"
-									transition={contentTransition}
-								>
-									<MetadataItemEditor
-										entry={activeEntry}
-										option={activeOption}
-										setLyricLines={setLyricLines}
-									/>
-								</motion.div>
-							)}
-						</AnimatePresence>
+						{appleMusicImportOpen && metadataEditorDialog ? (
+							<AppleMusicMetadataImport
+								key={projectId}
+								metadata={lyricLines.metadata}
+								onCancel={() => setAppleMusicImportOpen(false)}
+								onApply={(preview, fields) => {
+									const result = importAppleMusicMetadata({
+										projectId,
+										preview,
+										fields,
+									});
+									if (result === "staleProject") return;
+									if (result === "changed") {
+										toast.success(
+											t(
+												"metadataDialog.appleMusic.imported",
+												"已导入所选元数据",
+											),
+										);
+									} else {
+										toast.info(
+											t(
+												"metadataDialog.appleMusic.unchanged",
+												"所选元数据已是最新",
+											),
+										);
+									}
+									setAppleMusicImportOpen(false);
+									setActiveKey(fields[0] ?? "musicName");
+								}}
+							/>
+						) : (
+							<AnimatePresence mode="wait" initial={false}>
+								{activeOption && (
+									<motion.div
+										key={activeOption.value}
+										className={styles.contentTransition}
+										variants={contentVariants}
+										initial="initial"
+										animate="animate"
+										transition={contentTransition}
+									>
+										<MetadataItemEditor
+											entry={activeEntry}
+											option={activeOption}
+											setLyricLines={setLyricLines}
+										/>
+									</motion.div>
+								)}
+							</AnimatePresence>
+						)}
 					</div>
 
 					<Flex

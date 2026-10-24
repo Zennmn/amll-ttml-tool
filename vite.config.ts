@@ -54,7 +54,7 @@ const plugins: PluginOption = [
 		injectRegister: null,
 		disable: !!process.env.TAURI_ENV_PLATFORM,
 		workbox: {
-			globPatterns: ["**/*.{js,css,html,wasm}"],
+			globPatterns: ["**/*.{js,css,html,wasm}", "dictionaries/kuromoji/*"],
 			maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
 		},
 		manifest: {

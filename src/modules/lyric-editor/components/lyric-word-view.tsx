@@ -38,12 +38,12 @@ import { useTranslation } from "react-i18next";
 import { LyricLineMenu } from "$/components/Menus/lyric-line-menu.tsx";
 import { audioEngine } from "$/modules/audio/audio-engine.ts";
 import {
-	displayRomanizationInSyncAtom,
 	highlightActiveWordAtom,
 	highlightErrorsAtom,
 	LayoutMode,
 	layoutModeAtom,
 	showTimestampsAtom,
+	syncPronunciationModeAtom,
 } from "$/modules/settings/states/index.ts";
 import { visualizeTimestampUpdateAtom } from "$/modules/settings/states/sync.ts";
 import { splitWordDialogAtom } from "$/states/dialogs.ts";
@@ -62,6 +62,10 @@ import { msToTimestamp, parseTimespan } from "$/utils/timestamp.ts";
 import { RubyEditor } from "../tools/RubyEditor.tsx";
 import { buildRubySelectionId } from "../utils/lyric-states.ts";
 import { normalizeLineTime } from "../utils/normalize-line-time.ts";
+import {
+	getRubySyncRomanization,
+	getSyncPronunciationText,
+} from "../utils/sync-pronunciation";
 import styles from "./index.module.css";
 import { LyricWordMenu } from "./lyric-word-menu";
 
@@ -94,11 +98,7 @@ const getDisplayWordText = (
 	) => string,
 	word: string,
 	isWordBlank: boolean,
-	romanWord?: string,
-	displayRomanizationInSync?: boolean,
 ) => {
-	if (displayRomanizationInSync && romanWord && romanWord.trim() !== "")
-		return romanWord;
 	if (word === "") return t("lyricWordView.empty", "空白");
 	if (isWordBlank)
 		return t("lyricWordView.spaceCount", "空格 x{count}", {
@@ -748,9 +748,21 @@ const LyricSyncWordView: FC<{
 	startTime: number;
 	endTime: number;
 	displayWord: string;
+	secondaryWord?: string;
+	showSecondaryLine: boolean;
 	isWordBlank: boolean;
 	word?: string;
-}> = ({ syncId, line, startTime, endTime, displayWord, isWordBlank, word }) => {
+}> = ({
+	syncId,
+	line,
+	startTime,
+	endTime,
+	displayWord,
+	secondaryWord,
+	showSecondaryLine,
+	isWordBlank,
+	word,
+}) => {
 	const isWordSelectedAtom = useMemo(
 		() => atom((get) => get(selectedWordsAtom).has(syncId)),
 		[syncId],
@@ -897,7 +909,17 @@ const LyricSyncWordView: FC<{
 					{msToTimestamp(startTime)}
 				</div>
 			)}
-			<div className={styles.displayWord}>{displayWord}</div>
+			<div className={styles.syncWordText}>
+				<div className={styles.displayWord}>{displayWord}</div>
+				{showSecondaryLine && (
+					<div
+						className={styles.syncSecondaryWord}
+						aria-hidden={!secondaryWord || undefined}
+					>
+						{secondaryWord || "\u200b"}
+					</div>
+				)}
+			</div>
 			{showTimestamps && (
 				<div className={classNames(styles.endTime)} ref={endTimeRef}>
 					{showEndTimeAsDuration
@@ -914,21 +936,13 @@ const LyricWorldViewSync: FC<{
 	wordIndex: number;
 	line: LyricLine;
 	lineIndex: number;
-}> = ({ wordAtom, line }) => {
+	suggestedRoman?: string;
+	automaticRoman?: string;
+}> = ({ wordAtom, line, suggestedRoman, automaticRoman }) => {
 	const { t } = useTranslation();
 	const word = useAtomValue(wordAtom);
-	const displayRomanizationInSync = useAtomValue(displayRomanizationInSyncAtom);
+	const pronunciationMode = useAtomValue(syncPronunciationModeAtom);
 	const isWordBlank = useWordBlank(word.word);
-	const getDisplayWord = useCallback(
-		(
-			displayText: string,
-			isBlank: boolean,
-			romanWord?: string,
-			showRomanization?: boolean,
-		) =>
-			getDisplayWordText(t, displayText, isBlank, romanWord, showRomanization),
-		[t],
-	);
 
 	if (word.ruby && word.ruby.length > 0) {
 		return (
@@ -937,14 +951,22 @@ const LyricWorldViewSync: FC<{
 					const isRubyBlank =
 						rubyWord.word.length === 0 ||
 						(rubyWord.word.length > 0 && rubyWord.word.trim().length === 0);
+					const text = getSyncPronunciationText(
+						getDisplayWordText(t, rubyWord.word, isRubyBlank),
+						isRubyBlank ? undefined : getRubySyncRomanization(rubyWord.word),
+						pronunciationMode,
+					);
 					return (
 						<LyricSyncWordView
+							// biome-ignore lint/suspicious/noArrayIndexKey: Ruby timing units are identified by their parent word and positional sync ID.
 							key={`${word.id}-ruby-${rubyIndex}`}
 							syncId={buildRubySelectionId(word.id, rubyIndex)}
 							line={line}
 							startTime={rubyWord.startTime}
 							endTime={rubyWord.endTime}
-							displayWord={getDisplayWord(rubyWord.word, isRubyBlank)}
+							displayWord={text.primary}
+							secondaryWord={text.secondary}
+							showSecondaryLine={pronunciationMode !== "off"}
 							isWordBlank={isRubyBlank}
 							word={rubyWord.word}
 						/>
@@ -954,18 +976,22 @@ const LyricWorldViewSync: FC<{
 		);
 	}
 
+	const text = getSyncPronunciationText(
+		getDisplayWordText(t, word.word, isWordBlank),
+		isWordBlank
+			? undefined
+			: word.romanWord?.trim() || suggestedRoman || automaticRoman,
+		pronunciationMode,
+	);
 	return (
 		<LyricSyncWordView
 			syncId={word.id}
 			line={line}
 			startTime={word.startTime}
 			endTime={word.endTime}
-			displayWord={getDisplayWord(
-				word.word,
-				isWordBlank,
-				word.romanWord,
-				displayRomanizationInSync,
-			)}
+			displayWord={text.primary}
+			secondaryWord={text.secondary}
+			showSecondaryLine={pronunciationMode !== "off"}
 			isWordBlank={isWordBlank}
 			word={word.word}
 		/>
@@ -977,42 +1003,55 @@ export const LyricWordView: FC<{
 	wordIndex: number;
 	line: LyricLine;
 	lineIndex: number;
-}> = memo(({ wordAtom, wordIndex, line, lineIndex }) => {
-	const word = useAtomValue(wordAtom);
-	const toolMode = useAtomValue(toolModeAtom);
-	const layoutMode = useAtomValue(layoutModeAtom);
+	suggestedRoman?: string;
+	automaticRoman?: string;
+}> = memo(
+	({
+		wordAtom,
+		wordIndex,
+		line,
+		lineIndex,
+		suggestedRoman,
+		automaticRoman,
+	}) => {
+		const word = useAtomValue(wordAtom);
+		const toolMode = useAtomValue(toolModeAtom);
+		const layoutMode = useAtomValue(layoutModeAtom);
 
-	const isWordBlank = useWordBlank(word.word);
-	const hasRuby = word.ruby && word.ruby.length > 0;
+		const isWordBlank = useWordBlank(word.word);
+		const hasRuby = word.ruby && word.ruby.length > 0;
 
-	return (
-		<div>
-			{toolMode === ToolMode.Edit && layoutMode === LayoutMode.Simple && (
-				<LyricWorldViewEdit
-					wordAtom={wordAtom}
-					line={line}
-					lineIndex={lineIndex}
-					wordIndex={wordIndex}
-				/>
-			)}
-			{toolMode === ToolMode.Edit && layoutMode === LayoutMode.Advance && (
-				<LyricWordViewEditAdvance
-					wordAtom={wordAtom}
-					line={line}
-					lineIndex={lineIndex}
-					wordIndex={wordIndex}
-				/>
-			)}
-			{toolMode === ToolMode.Sync && (hasRuby || !isWordBlank) && (
-				<LyricWorldViewSync
-					wordAtom={wordAtom}
-					line={line}
-					lineIndex={lineIndex}
-					wordIndex={wordIndex}
-				/>
-			)}
-		</div>
-	);
-});
+		return (
+			<div>
+				{toolMode === ToolMode.Edit && layoutMode === LayoutMode.Simple && (
+					<LyricWorldViewEdit
+						wordAtom={wordAtom}
+						line={line}
+						lineIndex={lineIndex}
+						wordIndex={wordIndex}
+					/>
+				)}
+				{toolMode === ToolMode.Edit && layoutMode === LayoutMode.Advance && (
+					<LyricWordViewEditAdvance
+						wordAtom={wordAtom}
+						line={line}
+						lineIndex={lineIndex}
+						wordIndex={wordIndex}
+					/>
+				)}
+				{toolMode === ToolMode.Sync && (hasRuby || !isWordBlank) && (
+					<LyricWorldViewSync
+						wordAtom={wordAtom}
+						line={line}
+						lineIndex={lineIndex}
+						wordIndex={wordIndex}
+						suggestedRoman={suggestedRoman}
+						automaticRoman={automaticRoman}
+					/>
+				)}
+			</div>
+		);
+	},
+);
 
 export default LyricWordView;

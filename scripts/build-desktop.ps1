@@ -53,6 +53,9 @@ try {
         $loader = Join-Path $releaseDir 'WebView2Loader.dll'
         if (Test-Path -LiteralPath $loader) { Copy-Item -LiteralPath $loader -Destination $outputDir -Force }
         Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE') -Destination $outputDir -Force
+        $japaneseDictionary = Join-Path $repoRoot 'public/dictionaries/kuromoji'
+        Copy-Item -LiteralPath (Join-Path $japaneseDictionary 'LICENSE-2.0.txt') -Destination (Join-Path $outputDir 'kuromoji-LICENSE-2.0.txt') -Force
+        Copy-Item -LiteralPath (Join-Path $japaneseDictionary 'NOTICE.md') -Destination (Join-Path $outputDir 'kuromoji-NOTICE.md') -Force
         $installerDir = Join-Path $releaseDir 'bundle\nsis'
         if (-not $NoBundle -and (Test-Path -LiteralPath $installerDir)) {
             Get-ChildItem -LiteralPath $installerDir -Filter '*-setup.exe' -File |
@@ -66,7 +69,10 @@ AMLL TTML Tool 本地桌面版
 
 在线歌词：文件 → 导入歌词 → 从在线歌词源导入。
 整理：工具 → 整理当前歌词... / 用原文补齐缺失翻译。
-导出设置：编辑 → 首选项 → 常规 → 导出。
+导出设置：文件 → TTML 计时模式 / 原文语言。
+元数据：元数据编辑器 → 从 Apple Music 导入，粘贴歌曲链接后预览并选择字段。
+发音：打轴 → 显示选项 → 发音显示，可选择原文在上或罗马音在上。
+没有已有音译时也会使用内置日语词典自动注音，运行时无需联网；已有音译优先。
 
 本地桌面版不会从上游自动下载安装更新。网页版与桌面版的历史记录、偏好设置独立保存；
 已有歌词请在网页版保存为 TTML 文件，再在桌面版打开。

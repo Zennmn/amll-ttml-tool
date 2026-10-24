@@ -1,4 +1,6 @@
+import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
+import type { SyncPronunciationMode } from "$/modules/lyric-editor/utils/sync-pronunciation.ts";
 import type { TtmlTimingMode } from "$/modules/ttml-processor/export-options";
 
 export enum SyncJudgeMode {
@@ -53,6 +55,43 @@ export const showWordRomanizationInputAtom = atomWithStorage(
 export const displayRomanizationInSyncAtom = atomWithStorage(
 	"displayRomanizationInSync",
 	false,
+	undefined,
+	{ getOnInit: true },
+);
+
+const syncPronunciationModeStorageAtom =
+	atomWithStorage<SyncPronunciationMode | null>(
+		"syncPronunciationMode",
+		null,
+		undefined,
+		{ getOnInit: true },
+	);
+
+const syncPronunciationModes: ReadonlySet<string> = new Set([
+	"off",
+	"original-primary",
+	"romanization-primary",
+]);
+
+function isSyncPronunciationMode(
+	value: unknown,
+): value is SyncPronunciationMode {
+	return typeof value === "string" && syncPronunciationModes.has(value);
+}
+
+export const syncPronunciationModeAtom = atom(
+	(get): SyncPronunciationMode => {
+		const storedMode = get(syncPronunciationModeStorageAtom);
+		if (isSyncPronunciationMode(storedMode)) return storedMode;
+
+		return get(displayRomanizationInSyncAtom) === true
+			? "romanization-primary"
+			: "original-primary";
+	},
+	(_get, set, mode: SyncPronunciationMode) => {
+		set(syncPronunciationModeStorageAtom, mode);
+		set(displayRomanizationInSyncAtom, mode === "romanization-primary");
+	},
 );
 
 export const showLineTranslationAtom = atomWithStorage(

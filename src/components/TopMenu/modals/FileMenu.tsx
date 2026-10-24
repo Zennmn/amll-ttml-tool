@@ -1,8 +1,9 @@
 import { Button, DropdownMenu } from "@radix-ui/themes";
-import type { CSSProperties } from "react";
 import { Toolbar } from "radix-ui";
+import type { CSSProperties } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { ImportExportLyric } from "$/modules/project/modals/ImportExportLyric";
+import { TtmlExportMenu } from "$/modules/project/modals/TtmlExportMenu";
 import { formatKeyBindings } from "$/utils/keybindings";
 import { useTopMenuActions } from "../useTopMenuActions";
 
@@ -40,6 +41,8 @@ const FileMenuItems = () => {
 			>
 				<Trans i18nKey="topBar.menu.saveLyric">保存 TTML 文件</Trans>
 			</DropdownMenu.Item>
+			<DropdownMenu.Separator />
+			<TtmlExportMenu />
 			<DropdownMenu.Separator />
 			<DropdownMenu.Item onSelect={menu.onOpenHistoryRestore}>
 				{t("topBar.menu.restoreFromHistory", "从历史记录恢复...")}

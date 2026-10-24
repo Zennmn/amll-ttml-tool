@@ -12,6 +12,7 @@ dist
 dist-ssr
 dist-desktop
 /desktop-app/
+/public/dictionaries/kuromoji/
 *.local
 **/target
 /.tauri
