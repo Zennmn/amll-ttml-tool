@@ -53,7 +53,11 @@ test("a verified local service enables browser sources and carries lyric candida
 			original: { format: "krc", content: "[1000,1000]<0,1000,0>Hello" },
 		});
 	};
-	assert.deepEqual(await discoverAvailableProviders(), health.providers);
+	assert.deepEqual(await discoverAvailableProviders(), [
+		...health.providers,
+		"amll-ttml-db",
+		"am-lyrics",
+	]);
 	assert.equal(supportsProvider("qq"), true);
 	const result = await searchProvider("kugou", "Song", 2);
 	assert.equal(result.tracks[0].hash, "abc123");
@@ -132,13 +136,21 @@ test("an absent or unrelated service preserves the static website's LRCLIB fallb
 		}),
 	]) {
 		globalThis.fetch = async () => response;
-		assert.deepEqual(await discoverAvailableProviders(), ["lrclib"]);
+		assert.deepEqual(await discoverAvailableProviders(), [
+			"lrclib",
+			"amll-ttml-db",
+			"am-lyrics",
+		]);
 		assert.equal(supportsProvider("qq"), false);
 	}
 	globalThis.fetch = async () => {
 		throw new TypeError("Failed to fetch");
 	};
-	assert.deepEqual(await discoverAvailableProviders(), ["lrclib"]);
+	assert.deepEqual(await discoverAvailableProviders(), [
+		"lrclib",
+		"amll-ttml-db",
+		"am-lyrics",
+	]);
 	await assert.rejects(searchProvider("qq", "Song"), /local lyric service/);
 });
 
@@ -149,4 +161,50 @@ test("cancelled service discovery does not change available sources", async () =
 	controller.abort();
 	await assert.rejects(discoverAvailableProviders(controller.signal));
 	assert.equal(supportsProvider("qq"), true);
+});
+
+test("both TTML repositories search and fetch directly even with an available local service", async () => {
+	const requests: string[] = [];
+	globalThis.fetch = async (url) => {
+		const path = String(url);
+		requests.push(path);
+		if (path.endsWith("index.json"))
+			return json({
+				version: 1,
+				entries: [
+					{
+						appleMusicId: 123,
+						artist: "Artist",
+						title: "Song",
+						path: "am-lyrics/Artist - Song - 123.ttml",
+					},
+				],
+			});
+		if (path.endsWith(".jsonl"))
+			return new Response(
+				JSON.stringify({
+					rawLyricFile: "1760000000000-123-testfile.ttml",
+					metadata: [
+						["musicName", ["Song"]],
+						["artists", ["Artist"]],
+						["ncmMusicId", ["456"]],
+					],
+				}),
+			);
+		return new Response("<tt>repository</tt>");
+	};
+	for (const provider of ["am-lyrics", "amll-ttml-db"] as const) {
+		const page = await searchProvider(provider, "Song Artist");
+		assert.equal(page.tracks.length, 1);
+		assert.equal(
+			(await fetchProviderLyrics(page.tracks[0])).original.format,
+			"ttml",
+		);
+	}
+	assert.equal(requests.length, 4);
+	assert.ok(
+		requests.every((url) =>
+			url.startsWith("https://raw.githubusercontent.com/"),
+		),
+	);
 });

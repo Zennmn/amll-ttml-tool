@@ -1,5 +1,18 @@
-export const ONLINE_PROVIDERS = ["netease", "qq", "kugou", "lrclib"] as const;
+export const ONLINE_PROVIDERS = [
+	"netease",
+	"qq",
+	"kugou",
+	"lrclib",
+	"amll-ttml-db",
+	"am-lyrics",
+] as const;
 export type OnlineProviderId = (typeof ONLINE_PROVIDERS)[number];
+
+export type OnlinePlatformId =
+	| "appleMusicId"
+	| "ncmMusicId"
+	| "qqMusicId"
+	| "spotifyId";
 
 /** Provider identifiers are retained until the full lyric has been fetched. */
 export interface OnlineTrack {
@@ -11,6 +24,8 @@ export interface OnlineTrack {
 	durationMs: number;
 	mid?: string;
 	hash?: string;
+	/** Verified catalog IDs from repository indexes, never the repository record ID. */
+	platformIds?: Partial<Record<OnlinePlatformId, string[]>>;
 }
 
 export interface OnlineSearchPage {
@@ -26,7 +41,7 @@ export interface LyricCandidate {
 	durationMs?: number;
 }
 
-export type LyricFormat = "lrc" | "qrc" | "yrc" | "krc" | "plain";
+export type LyricFormat = "lrc" | "qrc" | "yrc" | "krc" | "plain" | "ttml";
 export interface LyricChannel {
 	format: LyricFormat;
 	content: string;

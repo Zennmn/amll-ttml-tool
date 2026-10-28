@@ -35,6 +35,10 @@ try {
 
     Push-Location $repoRoot
     try {
+        if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'src-tauri/resources/apple-music-helper/manifest.json'))) {
+            & pwsh.exe -NoProfile -File (Join-Path $PSScriptRoot 'prepare-apple-music-helper.ps1')
+            if ($LASTEXITCODE -ne 0) { throw 'Apple Music helper preparation failed.' }
+        }
         # The frontend has a distinct output folder, so building the desktop app
         # cannot replace the assets used by an already running local website.
         $env:TAURI_ENV_PLATFORM = 'windows'
@@ -52,6 +56,13 @@ try {
         # GNU builds load Microsoft's WebView2 loader as a companion DLL.
         $loader = Join-Path $releaseDir 'WebView2Loader.dll'
         if (Test-Path -LiteralPath $loader) { Copy-Item -LiteralPath $loader -Destination $outputDir -Force }
+        $appleHelper = Join-Path $repoRoot 'src-tauri/resources/apple-music-helper'
+        $appleHelperTarget = Join-Path $outputDir 'apple-music-helper'
+        foreach ($helperFile in Get-ChildItem -LiteralPath $appleHelper -Recurse -File) {
+            $helperDestination = Join-Path $appleHelperTarget ([IO.Path]::GetRelativePath($appleHelper, $helperFile.FullName))
+            New-Item -ItemType Directory -Path (Split-Path $helperDestination) -Force | Out-Null
+            Copy-Item -LiteralPath $helperFile.FullName -Destination $helperDestination -Force
+        }
         Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE') -Destination $outputDir -Force
         $japaneseDictionary = Join-Path $repoRoot 'public/dictionaries/kuromoji'
         Copy-Item -LiteralPath (Join-Path $japaneseDictionary 'LICENSE-2.0.txt') -Destination (Join-Path $outputDir 'kuromoji-LICENSE-2.0.txt') -Force
@@ -68,9 +79,13 @@ AMLL TTML Tool 本地桌面版
 无需启动网页服务，无需 Node.js、PNPM 或 Rust。电脑需要 Microsoft Edge WebView2 Runtime。
 
 在线歌词：文件 → 导入歌词 → 从在线歌词源导入。
+可勾选 AMLL TTML DB 和 am-lyrics，按歌名、歌手或歌曲 ID 搜索并预览原始 TTML。
 整理：工具 → 整理当前歌词... / 用原文补齐缺失翻译。
 导出设置：文件 → TTML 计时模式 / 原文语言。
 元数据：元数据编辑器 → 从 Apple Music 导入，粘贴歌曲链接后预览并选择字段。
+在线音频：音频栏 → Apple Music → 网页登录，在苹果官方页面登录后自动获取 Cookies。
+粘贴单曲链接即可临时下载并载入打轴。无需导出 Cookies 文件或单独安装 Python。
+请同时保留同目录 apple-music-helper 文件夹；下载音频载入后会释放磁盘缓存。
 发音：打轴 → 显示选项 → 发音显示，可选择原文在上或罗马音在上。
 没有已有音译时也会使用内置日语词典自动注音，运行时无需联网；已有音译优先。
 

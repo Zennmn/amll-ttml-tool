@@ -95,7 +95,7 @@ export function TtmlCleanupDialog() {
 						<Text size="1" color="gray">
 							{t(
 								"ttmlCleanup.hint",
-								"仅识别 () 和（）；其他括号、不成对的圆括号和遮蔽星号保留，原词时间轴不变。",
+								"主句翻译中的圆括号内容也会移到和声翻译。仅识别 () 和（）；其他括号、不成对的圆括号和遮蔽星号保留，原词时间轴不变。",
 							)}
 						</Text>
 					</Flex>

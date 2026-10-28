@@ -7,6 +7,8 @@ import { toast } from "react-toastify";
 import { fillMissingTranslationsAtom } from "$/modules/ttml-cleanup/editor-state.ts";
 import {
 	shortSyllableMergeDialogAtom,
+	timelineFormatDialogAtom,
+	translationRemovalDialogAtom,
 	ttmlCleanupDialogAtom,
 } from "$/states/dialogs.ts";
 import { useTopMenuActions } from "../useTopMenuActions";
@@ -21,11 +23,19 @@ const ToolMenuItems = () => {
 	const { t } = useTranslation();
 	const menu = useTopMenuActions();
 	const setCleanupOpen = useSetAtom(ttmlCleanupDialogAtom);
+	const setTimelineFormatOpen = useSetAtom(timelineFormatDialogAtom);
+	const setTranslationRemovalOpen = useSetAtom(translationRemovalDialogAtom);
 	const setShortSyllableMergeOpen = useSetAtom(shortSyllableMergeDialogAtom);
 	const fillMissingTranslations = useSetAtom(fillMissingTranslationsAtom);
 
 	return (
 		<>
+			<DropdownMenu.Item onSelect={() => setTimelineFormatOpen(true)}>
+				{t("timelineFormat.menu", "格式化时间轴...")}
+			</DropdownMenu.Item>
+			<DropdownMenu.Item onSelect={() => setTranslationRemovalOpen(true)}>
+				{t("translationRemoval.menu", "批量去除翻译...")}
+			</DropdownMenu.Item>
 			<DropdownMenu.Item onSelect={() => setCleanupOpen(true)}>
 				{t("ttmlCleanup.menu", "整理 TTML 歌词...")}
 			</DropdownMenu.Item>

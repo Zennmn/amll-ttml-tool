@@ -47,6 +47,7 @@ import {
 } from "$/modules/audio/states";
 import { AuditionKeyBinding } from "$/modules/keyboard/components/AuditionKeyBinding";
 import { AudioSpectrogram } from "$/modules/spectrogram/components/AudioSpectrogram";
+import { appleMusicAudioDialogAtom } from "$/states/dialogs";
 import {
 	keyPlaybackRateDownAtom,
 	keyPlaybackRateResetAtom,
@@ -151,6 +152,7 @@ export const AudioControls: FC = memo(() => {
 	const { openFile } = useFileOpener();
 	const { t } = useTranslation();
 	const openTab = useSetAtom(openTabAtom);
+	const setAppleMusicAudioOpen = useSetAtom(appleMusicAudioDialogAtom);
 
 	const setLocateAction = useSetAtom(locateActionAtom);
 
@@ -223,6 +225,16 @@ export const AudioControls: FC = memo(() => {
 						<AudioSpectrogram />
 					</div>
 					<Flex align="center" px="2" gapX="2">
+						<Button
+							type="button"
+							variant="soft"
+							size="1"
+							title={t("appleMusicAudio.title")}
+							disabled={engineState === "loading"}
+							onClick={() => setAppleMusicAudioOpen(true)}
+						>
+							Apple Music
+						</Button>
 						<HoverCard.Root>
 							<HoverCard.Trigger>
 								<IconButton

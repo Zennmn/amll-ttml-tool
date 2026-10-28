@@ -1,3 +1,5 @@
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { boundedRequest } from "$/modules/online-lyrics/requests";
 import type { TTMLMetadata } from "$/types/ttml";
 
 export const APPLE_MUSIC_IMPORT_FIELDS = [
@@ -5,7 +7,11 @@ export const APPLE_MUSIC_IMPORT_FIELDS = [
 	"artists",
 	"album",
 	"appleMusicId",
+	"isrc",
+	"songwriter",
 ] as const;
+
+export type AppleMusicMetadataMode = "enhanced" | "basic";
 
 export type AppleMusicMetadataField =
 	(typeof APPLE_MUSIC_IMPORT_FIELDS)[number];
@@ -21,6 +27,8 @@ export interface AppleMusicMetadataPreview extends AppleMusicSongLink {
 	artworkUrl?: string;
 	releaseDate?: string;
 	durationMs?: number;
+	retrievalMode?: AppleMusicMetadataMode;
+	enhancementUnavailable?: boolean;
 }
 
 export type AppleMusicMetadataErrorCode =
@@ -30,7 +38,9 @@ export type AppleMusicMetadataErrorCode =
 	| "invalidResponse"
 	| "network"
 	| "timeout"
-	| "rateLimited";
+	| "rateLimited"
+	| "accessDenied"
+	| "serviceUnavailable";
 
 export class AppleMusicMetadataError extends Error {
 	constructor(public readonly code: AppleMusicMetadataErrorCode) {
@@ -151,65 +161,307 @@ export function parseAppleMusicLookupResponse(
 }
 
 interface AppleMusicLookupOptions {
+	mode?: AppleMusicMetadataMode;
 	signal?: AbortSignal;
 	fetcher?: typeof fetch;
 	timeoutMs?: number;
+	nativeLookup?: (
+		link: AppleMusicSongLink,
+	) => Promise<{ status: number; body: string }>;
+	nativeCatalogLookup?: (
+		link: AppleMusicSongLink,
+	) => Promise<{ status: number; body: string }>;
+	enhancementTimeoutMs?: number;
 }
 
+function parseLookupResult(
+	status: number,
+	body: string,
+	link: AppleMusicSongLink,
+): AppleMusicMetadataPreview {
+	if (
+		!Number.isInteger(status) ||
+		status < 100 ||
+		status > 599 ||
+		typeof body !== "string"
+	) {
+		throw new AppleMusicMetadataError("invalidResponse");
+	}
+	if (status < 200 || status >= 300) {
+		throw new AppleMusicMetadataError(
+			status === 429
+				? "rateLimited"
+				: status === 404
+					? "notFound"
+					: status === 408 || status === 504
+						? "timeout"
+						: status === 401 || status === 403 || status === 451
+							? "accessDenied"
+							: "serviceUnavailable",
+		);
+	}
+	let data: unknown;
+	try {
+		if (body.length > 512 * 1024) throw new Error("Response too large");
+		data = JSON.parse(body);
+	} catch {
+		throw new AppleMusicMetadataError("invalidResponse");
+	}
+	return parseAppleMusicLookupResponse(data, link);
+}
+
+function normalizeNativeError(error: unknown): AppleMusicMetadataError {
+	if (error instanceof AppleMusicMetadataError) return error;
+	if (
+		record(error) &&
+		["invalidLink", "network", "timeout", "invalidResponse"].includes(
+			String(error.code),
+		)
+	) {
+		return new AppleMusicMetadataError(
+			error.code as AppleMusicMetadataErrorCode,
+		);
+	}
+	return new AppleMusicMetadataError("network");
+}
+
+function waitForLookupRetry(signal: AbortSignal): Promise<void> {
+	return new Promise((resolve, reject) => {
+		signal.throwIfAborted();
+		const cancel = () => {
+			clearTimeout(timer);
+			reject(signal.reason);
+		};
+		const timer = setTimeout(() => {
+			signal.removeEventListener("abort", cancel);
+			resolve();
+		}, 200);
+		signal.addEventListener("abort", cancel, { once: true });
+	});
+}
+
+async function fetchBasicAppleMusicMetadata(
+	input: string,
+	options: AppleMusicLookupOptions = {},
+): Promise<AppleMusicMetadataPreview> {
+	const link = parseAppleMusicSongLink(input);
+	options.signal?.throwIfAborted();
+	const nativeLookup =
+		options.nativeLookup ??
+		(typeof window !== "undefined" && isTauri()
+			? (song: AppleMusicSongLink) =>
+					invoke<{ status: number; body: string }>(
+						"apple_music_metadata_lookup",
+						{ songId: song.songId, storefront: song.storefront },
+					)
+			: undefined);
+	try {
+		return await boundedRequest(
+			async (signal) => {
+				let nativeFailure: AppleMusicMetadataError | undefined;
+				if (nativeLookup) {
+					try {
+						const result = await nativeLookup(link);
+						signal.throwIfAborted();
+						if (!record(result))
+							throw new AppleMusicMetadataError("invalidResponse");
+						return parseLookupResult(result.status, result.body, link);
+					} catch (error) {
+						signal.throwIfAborted();
+						nativeFailure = normalizeNativeError(error);
+						if (
+							![
+								"network",
+								"timeout",
+								"serviceUnavailable",
+								"accessDenied",
+							].includes(nativeFailure.code)
+						) {
+							throw nativeFailure;
+						}
+					}
+				}
+				const url = new URL("https://itunes.apple.com/lookup");
+				url.searchParams.set("id", link.songId);
+				url.searchParams.set("country", link.storefront);
+				for (let attempt = 0; attempt < 2; attempt++) {
+					signal.throwIfAborted();
+					try {
+						const response = await (options.fetcher ?? fetch)(url.toString(), {
+							signal,
+							credentials: "omit",
+							cache: "no-store",
+							referrerPolicy: "no-referrer",
+							headers: { Accept: "application/json" },
+						});
+						const text = await response.text();
+						signal.throwIfAborted();
+						return parseLookupResult(response.status, text, link);
+					} catch (error) {
+						signal.throwIfAborted();
+						const failure =
+							error instanceof AppleMusicMetadataError
+								? error
+								: (nativeFailure ?? new AppleMusicMetadataError("network"));
+						if (
+							attempt > 0 ||
+							!["network", "serviceUnavailable"].includes(failure.code)
+						) {
+							throw failure;
+						}
+						await waitForLookupRetry(signal);
+					}
+				}
+				throw new AppleMusicMetadataError("network");
+			},
+			options.signal,
+			options.timeoutMs ?? 25000,
+		);
+	} catch (error) {
+		options.signal?.throwIfAborted();
+		if (error instanceof Error && error.name === "TimeoutError") {
+			throw new AppleMusicMetadataError("timeout");
+		}
+		if (error instanceof AppleMusicMetadataError) throw error;
+		throw new AppleMusicMetadataError("network");
+	}
+}
+
+/** Parse catalog attributes only for the exact song selected in the shared link. */
+export function parseAppleMusicCatalogResponse(
+	data: unknown,
+	link: AppleMusicSongLink,
+): AppleMusicMetadataPreview {
+	if (!record(data) || !Array.isArray(data.data)) {
+		throw new AppleMusicMetadataError("invalidResponse");
+	}
+	if (data.data.length === 0) throw new AppleMusicMetadataError("notFound");
+	const song = data.data.find(
+		(item) => record(item) && item.type === "songs" && item.id === link.songId,
+	);
+	const attributes =
+		record(song) && record(song.attributes) ? song.attributes : null;
+	if (
+		!attributes ||
+		!nonempty(attributes.name) ||
+		!nonempty(attributes.artistName)
+	) {
+		throw new AppleMusicMetadataError("invalidResponse");
+	}
+	const metadata: TTMLMetadata[] = [
+		{ key: "musicName", value: [nonempty(attributes.name)] },
+		{ key: "artists", value: [nonempty(attributes.artistName)] },
+	];
+	const album = nonempty(attributes.albumName);
+	if (album) metadata.push({ key: "album", value: [album] });
+	metadata.push({ key: "appleMusicId", value: [link.songId] });
+	const isrc = nonempty(attributes.isrc).replace(/-/g, "").toUpperCase();
+	if (/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(isrc))
+		metadata.push({ key: "isrc", value: [isrc] });
+	// Keep Apple's composer display string intact; this is not a complete lyricist list.
+	const composer = nonempty(attributes.composerName);
+	if (composer && composer.length <= 4096)
+		metadata.push({ key: "songwriter", value: [composer] });
+	const artwork = record(attributes.artwork)
+		? nonempty(attributes.artwork.url)
+		: "";
+	const date = nonempty(attributes.releaseDate);
+	return {
+		...link,
+		metadata,
+		sourceUrl: `https://music.apple.com/${link.storefront}/song/${link.songId}`,
+		retrievalMode: "enhanced",
+		artworkUrl: /^https:\/\/[^/]+\.mzstatic\.com\//i.test(artwork)
+			? artwork.replaceAll("{w}", "300").replaceAll("{h}", "300")
+			: undefined,
+		releaseDate:
+			/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(date) && !Number.isNaN(Date.parse(date))
+				? date.slice(0, 10)
+				: undefined,
+		durationMs:
+			typeof attributes.durationInMillis === "number" &&
+			Number.isFinite(attributes.durationInMillis) &&
+			attributes.durationInMillis >= 0
+				? attributes.durationInMillis
+				: undefined,
+	};
+}
+
+/** Basic stays available independently; the desktop UI opts into enhancement. */
 export async function fetchAppleMusicMetadata(
 	input: string,
 	options: AppleMusicLookupOptions = {},
 ): Promise<AppleMusicMetadataPreview> {
 	const link = parseAppleMusicSongLink(input);
 	options.signal?.throwIfAborted();
-	const controller = new AbortController();
-	const cancel = () => controller.abort(options.signal?.reason);
-	options.signal?.addEventListener("abort", cancel, { once: true });
-	let timedOut = false;
-	const timer = setTimeout(() => {
-		timedOut = true;
-		controller.abort();
-	}, options.timeoutMs ?? 15000);
+	if (options.mode !== "enhanced") {
+		return fetchBasicAppleMusicMetadata(input, options);
+	}
+	const catalogLookup =
+		options.nativeCatalogLookup ??
+		(typeof window !== "undefined" && isTauri()
+			? (song: AppleMusicSongLink) =>
+					invoke<{ status: number; body: string }>(
+						"apple_music_catalog_lookup",
+						{
+							songId: song.songId,
+							storefront: song.storefront,
+						},
+					)
+			: undefined);
 	try {
-		const url = new URL("https://itunes.apple.com/lookup");
-		url.searchParams.set("id", link.songId);
-		url.searchParams.set("country", link.storefront);
-		const response = await (options.fetcher ?? fetch)(url.toString(), {
-			signal: controller.signal,
-			credentials: "omit",
-			referrerPolicy: "no-referrer",
-			headers: { Accept: "application/json" },
-		});
-		controller.signal.throwIfAborted();
-		if (!response.ok) {
-			throw new AppleMusicMetadataError(
-				response.status === 429
-					? "rateLimited"
-					: response.status === 404
-						? "notFound"
-						: "network",
-			);
-		}
-		const text = await response.text();
-		controller.signal.throwIfAborted();
-		let data: unknown;
-		try {
-			if (text.length > 512 * 1024) {
-				throw new Error("Response too large");
-			}
-			data = JSON.parse(text);
-		} catch {
-			throw new AppleMusicMetadataError("invalidResponse");
-		}
-		return parseAppleMusicLookupResponse(data, link);
+		return await boundedRequest(
+			async (signal) => {
+				if (catalogLookup) {
+					try {
+						return await boundedRequest(
+							async (catalogSignal) => {
+								const response = await catalogLookup(link);
+								catalogSignal.throwIfAborted();
+								if (
+									!record(response) ||
+									response.status !== 200 ||
+									typeof response.body !== "string" ||
+									response.body.length > 512 * 1024
+								) {
+									throw new AppleMusicMetadataError("invalidResponse");
+								}
+								let data: unknown;
+								try {
+									data = JSON.parse(response.body);
+								} catch {
+									throw new AppleMusicMetadataError("invalidResponse");
+								}
+								return parseAppleMusicCatalogResponse(data, link);
+							},
+							signal,
+							options.enhancementTimeoutMs ?? 13000,
+						);
+					} catch {
+						signal.throwIfAborted();
+						// A failed/older enhancement command must not prevent a basic preview.
+					}
+				}
+				const basic = await fetchBasicAppleMusicMetadata(input, {
+					...options,
+					signal,
+				});
+				return {
+					...basic,
+					retrievalMode: "basic",
+					enhancementUnavailable: true,
+				};
+			},
+			options.signal,
+			options.timeoutMs ?? 30000,
+		);
 	} catch (error) {
 		options.signal?.throwIfAborted();
-		if (timedOut) throw new AppleMusicMetadataError("timeout");
+		if (error instanceof Error && error.name === "TimeoutError") {
+			throw new AppleMusicMetadataError("timeout");
+		}
 		if (error instanceof AppleMusicMetadataError) throw error;
 		throw new AppleMusicMetadataError("network");
-	} finally {
-		clearTimeout(timer);
-		options.signal?.removeEventListener("abort", cancel);
 	}
 }
 
@@ -225,6 +477,16 @@ export function getDefaultAppleMusicFields(
 			!current.some(
 				(item) => item.key === key && item.value.some((value) => value.trim()),
 			),
+	);
+}
+
+export function getAvailableAppleMusicFields(
+	preview: AppleMusicMetadataPreview,
+): AppleMusicMetadataField[] {
+	return APPLE_MUSIC_IMPORT_FIELDS.filter((key) =>
+		preview.metadata.some(
+			(item) => item.key === key && item.value.some((value) => value.trim()),
+		),
 	);
 }
 

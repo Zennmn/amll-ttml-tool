@@ -28,7 +28,6 @@ import { importFromLRCLIBDialogAtom } from "$/states/dialogs";
 import { lyricLinesAtom } from "$/states/main";
 import type { TTMLLyric } from "$/types/ttml";
 import { createLogger } from "$/utils/logger";
-import { convertOnlineLyrics } from "./adapter";
 import { createAudioSearchContext, rankTracks } from "./audio-context";
 import {
 	discoverAvailableProviders,
@@ -37,7 +36,9 @@ import {
 	supportsProvider,
 } from "./client";
 import styles from "./ImportDialog.module.css";
+import { isRepositoryProvider } from "./repository-sources";
 import { searchIndependently } from "./requests";
+import { convertOnlineLyricsForPreview } from "./ttml-import";
 import {
 	type AudioSearchContext,
 	type LyricCandidate,
@@ -123,6 +124,10 @@ export function ImportFromOnlineLyrics() {
 				return t("onlineLyrics.providers.kugou", "酷狗音乐");
 			case "lrclib":
 				return "LRCLIB";
+			case "amll-ttml-db":
+				return "AMLL TTML DB";
+			case "am-lyrics":
+				return "am-lyrics";
 		}
 	};
 	const errorMessage = useCallback(
@@ -348,11 +353,13 @@ export function ImportFromOnlineLyrics() {
 			);
 			if (generation !== previewGeneration.current || controller.signal.aborted)
 				return;
-			const data = convertOnlineLyrics(
+			const data = await convertOnlineLyricsForPreview(
 				track,
 				bundle,
 				contextRef.current?.durationMs,
 			);
+			if (generation !== previewGeneration.current || controller.signal.aborted)
+				return;
 			if (!data.lyricLines.length) throw new Error("No importable lyrics");
 			setPreviewBundle(bundle);
 			setPreviewData(data);
@@ -389,6 +396,8 @@ export function ImportFromOnlineLyrics() {
 	const hasTranslation = !!previewData?.lyricLines.some(
 		(line) => line.translatedLyric,
 	);
+	const canEstimateTiming =
+		!wordTimed && previewBundle?.original.format !== "ttml";
 	const hasRomanization = !!previewData?.lyricLines.some(
 		(line) => line.romanLyric || line.words.some((word) => word.romanWord),
 	);
@@ -421,12 +430,12 @@ export function ImportFromOnlineLyrics() {
 					for (const word of line.words) word.romanWord = "";
 				}
 			}
-			if (extractBg && !wordTimed)
+			if (extractBg && canEstimateTiming)
 				data = {
 					...data,
 					lyricLines: data.lyricLines.flatMap(extractParenthesesToBg),
 				};
-			if (autoSegment && !wordTimed)
+			if (autoSegment && canEstimateTiming)
 				data = {
 					...data,
 					lyricLines: segmentLyricLines(data.lyricLines, segmentationConfig),
@@ -477,7 +486,7 @@ export function ImportFromOnlineLyrics() {
 						<Text size="1" color="gray" mb="3">
 							{t(
 								"onlineLyrics.localRequired",
-								"要使用全部来源，请双击项目中的“启动AMLL.cmd”打开本地版；当前可使用 LRCLIB",
+								"网易、QQ 和酷狗需要本地版；当前可使用 LRCLIB、AMLL TTML DB 和 am-lyrics",
 							)}
 						</Text>
 					)}
@@ -486,7 +495,10 @@ export function ImportFromOnlineLyrics() {
 							className={styles.searchBar}
 							value={query}
 							maxLength={200}
-							placeholder={t("onlineLyrics.placeholder", "歌名 歌手…")}
+							placeholder={t(
+								"onlineLyrics.placeholder",
+								"歌名、歌手或歌曲 ID…",
+							)}
 							onChange={(event) => {
 								setQuery(event.target.value);
 								cancelSearch();
@@ -567,6 +579,9 @@ export function ImportFromOnlineLyrics() {
 											</Box>
 											<Flex gap="2" align="center" wrap="wrap" justify="end">
 												<Badge>{providerName(track.provider)}</Badge>
+												{isRepositoryProvider(track.provider) && (
+													<Badge>TTML</Badge>
+												)}
 												{track.durationMs > 0 && (
 													<Text size="1" color="gray">
 														{formatDuration(track.durationMs)}
@@ -609,7 +624,10 @@ export function ImportFromOnlineLyrics() {
 														"onlineLyrics.noResults",
 														"没有找到结果，请更换关键词或来源",
 													)
-												: t("onlineLyrics.startHint", "输入歌名、歌手开始搜索")}
+												: t(
+														"onlineLyrics.startHint",
+														"输入歌名、歌手或歌曲 ID 开始搜索",
+													)}
 									</Text>
 								</Flex>
 							)}
@@ -771,7 +789,7 @@ export function ImportFromOnlineLyrics() {
 										</Flex>
 									</Text>
 								)}
-								{!wordTimed && (
+								{canEstimateTiming && (
 									<>
 										<Text as="label" size="2">
 											<Flex gap="2" align="center">

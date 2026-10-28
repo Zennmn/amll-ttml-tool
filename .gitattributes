@@ -1,2 +1,5 @@
 **/wasm/** linguist-generated
 **/vendor/** linguist-generated
+
+# Preserve the byte-for-byte upstream snapshot used by UPSTREAM.json hashes.
+vendor/gamdl/** -text

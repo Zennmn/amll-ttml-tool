@@ -1,4 +1,9 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import {
+	fetchRepositoryLyrics,
+	isRepositoryProvider,
+	searchRepository,
+} from "./repository-sources";
 import { boundedRequest } from "./requests";
 import {
 	type LyricCandidate,
@@ -18,7 +23,12 @@ let localProviders = new Set<OnlineProviderId>();
 let discoveryGeneration = 0;
 
 export function supportsProvider(provider: OnlineProviderId): boolean {
-	return provider === "lrclib" || isTauri() || localProviders.has(provider);
+	return (
+		provider === "lrclib" ||
+		isRepositoryProvider(provider) ||
+		isTauri() ||
+		localProviders.has(provider)
+	);
 }
 
 /** A verified same-origin service enables the native sources in a local browser. */
@@ -204,6 +214,8 @@ export async function searchProvider(
 			"This source requires the local lyric service or desktop app",
 		);
 	return boundedRequest(async (requestSignal) => {
+		if (isRepositoryProvider(provider))
+			return searchRepository(provider, keyword, page, requestSignal);
 		if (provider === "lrclib" && !isTauri() && !usesLocalService(provider)) {
 			const values = await lrcLibJson(
 				`search?q=${encodeURIComponent(keyword)}`,
@@ -263,6 +275,8 @@ export async function fetchProviderLyrics(
 		return structuredClone(cached.data);
 	const lyrics = await boundedRequest(
 		async (requestSignal) => {
+			if (isRepositoryProvider(track.provider))
+				return fetchRepositoryLyrics(track, requestSignal);
 			if (
 				track.provider === "lrclib" &&
 				!isTauri() &&

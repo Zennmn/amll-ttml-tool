@@ -20,6 +20,9 @@ dist-desktop
 /.planning/
 /.codegraph/
 __pycache__/
+/src-tauri/resources/apple-music-helper/
+/vendor/gamdl/.venv/
+/vendor/gamdl/.maturin/
 
 # Editor directories and files
 .vscode/*

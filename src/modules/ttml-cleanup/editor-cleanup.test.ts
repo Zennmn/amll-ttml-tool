@@ -67,6 +67,9 @@ function sample(): TTMLLyric {
 	};
 }
 const text = (words: LyricWord[]) => words.map((item) => item.word).join("");
+function line(translatedLyric: string, words: LyricWord[], isBG = false) {
+	return { ...newLyricLine(), translatedLyric, words, isBG };
+}
 
 test("cleans current editor words without losing timestamps or editing fields", () => {
 	const input = sample();
@@ -88,12 +91,12 @@ test("cleans current editor words without losing timestamps or editing fields", 
 		[1000, 1100],
 	);
 	assert.deepEqual(main.endTimeLink, input.lyricLines[0].endTimeLink);
-	assert.equal(main.translatedLyric, input.lyricLines[0].translatedLyric);
+	assert.equal(main.translatedLyric, "翻译");
 	assert.equal(main.romanLyric, input.lyricLines[0].romanLyric);
 	assert.equal(background.isBG, true);
 	assert.equal(background.isDuet, true);
 	assert.equal(background.ignoreSync, true);
-	assert.equal(background.translatedLyric, "");
+	assert.equal(background.translatedLyric, "保持原样");
 	assert.equal(background.endTimeLink, undefined);
 	assert.equal(text(background.words), "echo!");
 	const expected = input.lyricLines[0].words[3];
@@ -321,6 +324,160 @@ test("separated background groups keep word boundaries, stars and unmatched brac
 	);
 });
 
+test("moves mixed, nested and separated CJK translation groups", () => {
+	const input: TTMLLyric = {
+		metadata: [],
+		lyricLines: [
+			line("译前(译一)译中（译外(译内)）译后(译二)译尾", [
+				word("前", 0),
+				word("(", 100),
+				word("一", 200),
+				word(")", 300),
+				word("中", 400),
+				word("（", 500),
+				word("外", 600),
+				word("(", 700),
+				word("内", 800),
+				word(")", 900),
+				word("）", 1000),
+				word("后", 1100),
+				word("(", 1200),
+				word("二", 1300),
+				word(")", 1400),
+				word("尾", 1500),
+			]),
+		],
+	};
+	const result = cleanupEditorLyrics(input, {
+		harmony: true,
+		punctuation: false,
+	});
+	assert.equal(result.harmonyGroups, 3);
+	const [main, background] = result.lyric.lyricLines;
+	assert.equal(main.translatedLyric, "译前译中译后译尾");
+	assert.equal(background.translatedLyric, "译一 译外译内 译二");
+});
+
+test("keeps unconverted, unmatched and non-round translation brackets literal", () => {
+	const unconverted = cleanupEditorLyrics(
+		{
+			metadata: [],
+			lyricLines: [line("译（保留）[注]", [word("lead [echo](unclosed", 0)])],
+		},
+		{ harmony: true, punctuation: false },
+	);
+	assert.equal(unconverted.changed, false);
+	assert.equal(
+		unconverted.lyric.lyricLines[0].translatedLyric,
+		"译（保留）[注]",
+	);
+
+	const unmatched = cleanupEditorLyrics(
+		{
+			metadata: [],
+			lyricLines: [line("译[注]（未闭合", [word("lead (echo) tail", 0)])],
+		},
+		{ harmony: true, punctuation: false },
+	);
+	const [main, background] = unmatched.lyric.lyricLines;
+	assert.equal(main.translatedLyric, "译[注]（未闭合");
+	assert.equal(background.translatedLyric, "");
+});
+
+test("leaves translations untouched without newly converted non-background words", () => {
+	const input: TTMLLyric = {
+		metadata: [],
+		lyricLines: [
+			line("主（回）尾", [word("lead (echo) tail", 0)]),
+			line("背景（原样）", [word("(existing)", 100)], true),
+		],
+	};
+	const punctuationOnly = cleanupEditorLyrics(input, {
+		harmony: false,
+		punctuation: true,
+	});
+	assert.equal(punctuationOnly.harmonyGroups, 0);
+	assert.deepEqual(
+		punctuationOnly.lyric.lyricLines.map((item) => item.translatedLyric),
+		["主（回）尾", "背景（原样）"],
+	);
+	const alreadyBackground = cleanupEditorLyrics(input, {
+		harmony: true,
+		punctuation: false,
+	});
+	assert.equal(
+		alreadyBackground.lyric.lyricLines.at(-1)?.translatedLyric,
+		"背景（原样）",
+	);
+});
+
+test("unwraps a whole converted line while retaining plain translations", () => {
+	const input: TTMLLyric = {
+		metadata: [],
+		lyricLines: [
+			line("说明（回声）", [word(" (echo) ", 0)]),
+			line("普通（保留）", [word("plain", 100)]),
+		],
+	};
+	const result = cleanupEditorLyrics(input, {
+		harmony: true,
+		punctuation: false,
+	});
+	assert.equal(result.lyric.lyricLines[0].isBG, true);
+	assert.equal(result.lyric.lyricLines[0].translatedLyric, "说明回声");
+	assert.equal(result.lyric.lyricLines[1].translatedLyric, "普通（保留）");
+});
+
+test("normalizes English seams and concatenates adjacent background groups", () => {
+	const input: TTMLLyric = {
+		metadata: [],
+		lyricLines: [
+			line("Lead  (echo)  middle （full）(next) tail", [
+				word("Lead ", 0),
+				word("(echo)", 100),
+				word(" middle ", 200),
+				word("（full）", 300),
+				word("(next)", 400),
+				word(" tail", 500),
+			]),
+		],
+	};
+	const result = cleanupEditorLyrics(input, {
+		harmony: true,
+		punctuation: false,
+	});
+	const [main, background] = result.lyric.lyricLines;
+	assert.equal(main.translatedLyric, "Lead middle tail");
+	assert.equal(background.translatedLyric, "echo fullnext");
+});
+
+test("translation splitting is idempotent and leaves its input frozen", () => {
+	const input: TTMLLyric = {
+		metadata: [],
+		lyricLines: [line("译前（回声）译后", [word("主（echo）尾", 0)])],
+	};
+	const before = structuredClone(input);
+	const freeze = (value: unknown): void => {
+		if (!value || typeof value !== "object" || Object.isFrozen(value)) return;
+		Object.freeze(value);
+		for (const child of Object.values(value)) freeze(child);
+	};
+	freeze(input);
+	const first = cleanupEditorLyrics(input, {
+		harmony: true,
+		punctuation: false,
+	});
+	const snapshot = structuredClone(first.lyric);
+	const repeated = cleanupEditorLyrics(first.lyric, {
+		harmony: true,
+		punctuation: false,
+	});
+	assert.deepEqual(input, before);
+	assert.deepEqual(first.lyric, snapshot);
+	assert.equal(repeated.changed, false);
+	assert.equal(repeated.lyric, first.lyric);
+});
+
 test("splitting a mixed word copies exact times and keeps unique editable objects", () => {
 	const mixed = word("main(echo)tail", 0.25, {
 		endTime: 500.75,
@@ -370,9 +527,17 @@ test("applying to the current project uses one undo step and keeps project ident
 		assert.equal(store.get(undoableLyricLinesAtom).canUndo, true);
 		store.set(undoLyricLinesAtom);
 		assert.deepEqual(store.get(lyricLinesAtom), input);
+		assert.deepEqual(
+			store.get(lyricLinesAtom).lyricLines.map((line) => line.translatedLyric),
+			["翻译（保持原样）"],
+		);
 		assert.equal(store.get(undoableLyricLinesAtom).canUndo, false);
 		store.set(redoLyricLinesAtom);
 		assert.deepEqual(store.get(lyricLinesAtom), result.lyric);
+		assert.deepEqual(
+			store.get(lyricLinesAtom).lyricLines.map((line) => line.translatedLyric),
+			["翻译", "保持原样"],
+		);
 	} finally {
 		unsubscribe();
 	}

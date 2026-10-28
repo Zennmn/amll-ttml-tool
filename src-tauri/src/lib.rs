@@ -1,3 +1,6 @@
+mod apple_music_audio;
+mod apple_music_catalog;
+mod apple_music_metadata;
 mod online_lyrics;
 
 #[derive(serde::Serialize)]
@@ -61,7 +64,8 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_decorum::init())
         .plugin(tauri_plugin_process::init())
-        .manage(online_lyrics::OnlineLyricsService::default());
+        .manage(online_lyrics::OnlineLyricsService::default())
+        .manage(apple_music_audio::AppleMusicAudioService::default());
 
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
     {
@@ -70,6 +74,14 @@ pub fn run() {
 
     builder
         .setup(|app| {
+            use tauri::Manager;
+            if app
+                .state::<apple_music_audio::AppleMusicAudioService>()
+                .initialize(app.handle())
+                .is_err()
+            {
+                log::warn!("Apple Music audio cache is unavailable");
+            }
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -80,7 +92,6 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             {
                 use tao::rwh_06::HasWindowHandle;
-                use tauri::Manager;
                 use tauri_plugin_decorum::WebviewWindowExt;
 
                 let main_window = app.get_webview_window("main").unwrap();
@@ -97,11 +108,38 @@ pub fn run() {
             }
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                use tauri::Manager;
+                for (label, auth) in window.app_handle().webview_windows() {
+                    if label.starts_with("apple-music-login") {
+                        let _ = auth.close();
+                    }
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+            apple_music_audio::apple_music_audio_status,
+            apple_music_audio::apple_music_audio_login,
+            apple_music_audio::apple_music_audio_logout,
+            apple_music_audio::apple_music_audio_start,
+            apple_music_audio::apple_music_audio_job,
+            apple_music_audio::apple_music_audio_cancel,
+            apple_music_audio::apple_music_audio_read,
+            apple_music_audio::apple_music_audio_release,
+            apple_music_catalog::apple_music_catalog_lookup,
+            apple_music_metadata::apple_music_metadata_lookup,
             get_open_file_data,
             online_lyrics_search,
             online_lyrics_fetch,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                use tauri::Manager;
+                app.state::<apple_music_audio::AppleMusicAudioService>()
+                    .shutdown();
+            }
+        });
 }

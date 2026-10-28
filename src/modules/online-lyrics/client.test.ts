@@ -83,3 +83,51 @@ test("desktop LRCLIB search and fetch use native IPC without WebView networking"
 	assert.deepEqual(commands, ["online_lyrics_search", "online_lyrics_fetch"]);
 	assert.equal(webFetch.mock.callCount(), 0);
 });
+
+test("desktop TTML repositories bypass unsupported native provider commands", async (t) => {
+	let ipcCalls = 0;
+	mockIPC(() => {
+		ipcCalls++;
+		throw new Error("Unsupported native provider");
+	});
+	t.mock.method(
+		globalThis,
+		"fetch",
+		async (url: Parameters<typeof fetch>[0]) =>
+			String(url).endsWith("index.json")
+				? new Response(
+						JSON.stringify({
+							version: 1,
+							entries: [
+								{
+									appleMusicId: 123,
+									artist: "Artist",
+									title: "Song",
+									path: "am-lyrics/Artist - Song - 123.ttml",
+								},
+							],
+						}),
+					)
+				: String(url).endsWith(".jsonl")
+					? new Response(
+							JSON.stringify({
+								rawLyricFile: "1760000000000-123-testfile.ttml",
+								metadata: [
+									["musicName", ["Song"]],
+									["artists", ["Artist"]],
+									["ncmMusicId", ["456"]],
+								],
+							}),
+						)
+					: new Response("<tt>repository</tt>"),
+	);
+	for (const provider of ["am-lyrics", "amll-ttml-db"] as const) {
+		const page = await searchProvider(provider, "Song Artist");
+		assert.equal(page.tracks.length, 1);
+		assert.equal(
+			(await fetchProviderLyrics(page.tracks[0])).original.format,
+			"ttml",
+		);
+	}
+	assert.equal(ipcCalls, 0);
+});

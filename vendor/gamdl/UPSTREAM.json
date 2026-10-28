@@ -1,0 +1,214 @@
+{
+  "project": "gamdl",
+  "version": "3.9.1",
+  "upstream": "https://github.com/glomatico/gamdl",
+  "source": "User-provided local checkout",
+  "license": "MIT",
+  "modifiedFiles": [],
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha256": "8fe4e8c30a76ec034bddbab8615b94b60daca9291ff1391951dc60b537e7d6f4"
+    },
+    {
+      "path": "README.md",
+      "sha256": "302696f2d891a9ff229fda73437ee13aa3835d57a50110aa65c9e907e43c80f1"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "1ba5d68e36d36b01cb6833a84cea8cf8aababc6e38556f56d474084db5fefa21"
+    },
+    {
+      "path": "uv.lock",
+      "sha256": "82f2d5e1230d016b882503ffe67af640efb5d9024311c6cff3f4c0ae3185721e"
+    },
+    {
+      "path": "gamdl/__init__.py",
+      "sha256": "4b418818a93bca3ebe26979178127e0eae6d2bc1384d19e331ab95b28594546e"
+    },
+    {
+      "path": "gamdl/__main__.py",
+      "sha256": "dbcf4b578b4dc484ac19cb9acc0e36a2239704adc12b4e291f675de00491ddc8"
+    },
+    {
+      "path": "gamdl/utils.py",
+      "sha256": "87116fc2b7d1e54369342bc148e3c549c15a55070b1d470dc23ff57bcdf38801"
+    },
+    {
+      "path": "gamdl/api/__init__.py",
+      "sha256": "15b3b5cb9d580f20f0e4001d43c3dc1d744cb982c75da0c305545a83f5e53448"
+    },
+    {
+      "path": "gamdl/api/apple_music.py",
+      "sha256": "54b473d3d712b7c72915ceefae2e084dac1d3ca325dad6bf34032d67821bc922"
+    },
+    {
+      "path": "gamdl/api/constants.py",
+      "sha256": "dfa23952927d6f9d91302af20e00914a6d96b4094710dcded96da7f279c2ed54"
+    },
+    {
+      "path": "gamdl/api/exceptions.py",
+      "sha256": "bfe9651b7863aa96bba5c78a54a6641312b4e6d6244b2da40e83761915100334"
+    },
+    {
+      "path": "gamdl/api/itunes.py",
+      "sha256": "ec06f40eea17da139a8ba93a5d5c708f42f9f96289834ab5030f93d263ef5537"
+    },
+    {
+      "path": "gamdl/api/wrapper.py",
+      "sha256": "e0f1441018baf5d321b78ebdccaf21a206a52610f0ef8c0069b0d8657f0a1cf0"
+    },
+    {
+      "path": "gamdl/cli/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "gamdl/cli/cli_config.py",
+      "sha256": "f61dbcb6cb4fafaecd81c665d78ff7d41fac15d449e6b11663182f81fd8a51d6"
+    },
+    {
+      "path": "gamdl/cli/cli.py",
+      "sha256": "d86db6f52f0d5024ef4243f186eb33e31ebb15e9af1f132293d7d74b97a73220"
+    },
+    {
+      "path": "gamdl/cli/config_file.py",
+      "sha256": "d2188c68bfc1b080db15f46ebfe6cb6e6f0817bdd83d018f9d01f62c3225fd0f"
+    },
+    {
+      "path": "gamdl/cli/constants.py",
+      "sha256": "0820d688c543620c016796c7123d0ec2719defa91c12e05af4f86cdd5ee6870d"
+    },
+    {
+      "path": "gamdl/cli/database.py",
+      "sha256": "2299b343e8c6cd173adddffddd6393791ec190c2780fe063da549f5c343bdce4"
+    },
+    {
+      "path": "gamdl/cli/interactive_prompts.py",
+      "sha256": "c6fb545f8fe7a12dbc71372a6a537674e359b4cdd81f7bb6845d2e398c7a969f"
+    },
+    {
+      "path": "gamdl/cli/utils.py",
+      "sha256": "60b65e79ba8e5ba60ffd2682766973f05ddc4ca910cf802b57514e137320c1e8"
+    },
+    {
+      "path": "gamdl/downloader/__init__.py",
+      "sha256": "a6775523f7e9a277b082ac4235b616615d7f9770f7e6c19419526bb2f1a4c1b3"
+    },
+    {
+      "path": "gamdl/downloader/ammuxer.py",
+      "sha256": "f627dbbb575929f9224b22501c84ad8527ea2169f9b2f8e29a8d264902132f88"
+    },
+    {
+      "path": "gamdl/downloader/base.py",
+      "sha256": "aa2e4aaaa22e8491c0c39396142e88785d8c86efda6729bde6b3989939ca2124"
+    },
+    {
+      "path": "gamdl/downloader/constants.py",
+      "sha256": "b1addd59029657c2c27d4a8b3927cdb4bb1c31d350f3156a2a5d835d69c2364e"
+    },
+    {
+      "path": "gamdl/downloader/downloader.py",
+      "sha256": "97091de063146323df99577c5997dcb6ab14c259b1b1fc38140ff0b20e150442"
+    },
+    {
+      "path": "gamdl/downloader/enums.py",
+      "sha256": "b2efbe133f2185e0bcb88c54ac2de57116c1ed7ad36a91bc6999be7bb8e79d93"
+    },
+    {
+      "path": "gamdl/downloader/exceptions.py",
+      "sha256": "abb5673aeddfb619d7cabff94a0eb682c8897aadc90483127d69333e4bd4175f"
+    },
+    {
+      "path": "gamdl/downloader/music_video.py",
+      "sha256": "42c308272c6ee5b1da529a06c410d698222cff2e5c87beb5af5e694de8be1c19"
+    },
+    {
+      "path": "gamdl/downloader/song.py",
+      "sha256": "f0a9abddfc2ff78f17e17c82a38ebaff765a05413da7b7403845545e9a0338f3"
+    },
+    {
+      "path": "gamdl/downloader/types.py",
+      "sha256": "5f39f9bc74a5de0513c0a2079932276d149206e05d0ed1f7a713b364e1f21bb5"
+    },
+    {
+      "path": "gamdl/downloader/uploaded_video.py",
+      "sha256": "7bb142fbb3c6210c6d312dedc44c26931588b342a6af891d1aef8fdc0287a40b"
+    },
+    {
+      "path": "gamdl/downloader/ammuxer/Cargo.lock",
+      "sha256": "1699c90a4ec75e6a75618987ce34f0cf123366b3ecd82b6d34eebc1dce53dfb6"
+    },
+    {
+      "path": "gamdl/downloader/ammuxer/Cargo.toml",
+      "sha256": "b9264b13bad5883bc44fedde9a164d7eaeed862e2cf86ca18889850970ed49f6"
+    },
+    {
+      "path": "gamdl/downloader/ammuxer/src/decrypt.rs",
+      "sha256": "18e977e89d4ac55a4dd6dfb35a50f3847f1263ed0fc36485aea8e1a4079f1fa1"
+    },
+    {
+      "path": "gamdl/downloader/ammuxer/src/lib.rs",
+      "sha256": "9689b593eac914450b70c0894ea556cba1f515f1226bb605c1faaf80f063fe60"
+    },
+    {
+      "path": "gamdl/downloader/ammuxer/src/media.rs",
+      "sha256": "a17bfa957f63031b3f5608e0df980ba5fcc600ab1f4a10218a99b35da60f01d2"
+    },
+    {
+      "path": "gamdl/downloader/ammuxer/src/mp4.rs",
+      "sha256": "20ff440cafd56f0a463a75785711011b097ddeb9b960b871588c84e6d84b47bd"
+    },
+    {
+      "path": "gamdl/downloader/ammuxer/src/mux.rs",
+      "sha256": "a33ff4cd50a2ddd1aaa40b991c9846c0af7eae0c77b71fbb78b511a711f0059a"
+    },
+    {
+      "path": "gamdl/downloader/ammuxer/src/python.rs",
+      "sha256": "de008384b2f6d21b5ff3cc56d65da5c07df1bc778b6c8b06b960222181419c6a"
+    },
+    {
+      "path": "gamdl/interface/__init__.py",
+      "sha256": "bbf2912dbe962fe18dc84522993cf1c4bb64ea724c266897c27e7d2426dcbe44"
+    },
+    {
+      "path": "gamdl/interface/base.py",
+      "sha256": "9905c3b1556648b5637f0e2fa8b829c55419cb91704f81bae147ef044ecefbae"
+    },
+    {
+      "path": "gamdl/interface/constants.py",
+      "sha256": "e6343d4115a5271577e62cce0b182c9f901c0eb3a566dc01029d9ce8888c09ff"
+    },
+    {
+      "path": "gamdl/interface/enums.py",
+      "sha256": "1577062e6c31879efc0bc796d6b9d593c4237ad9d36445ba337e8af9d80651c8"
+    },
+    {
+      "path": "gamdl/interface/exceptions.py",
+      "sha256": "2deec88e013f4efa45f7e8a3cad3b9fd2d36577996e0139a1d4d858af80aea17"
+    },
+    {
+      "path": "gamdl/interface/interface.py",
+      "sha256": "9e43627338d2ff36a166d5dbe7316bbea047634a8edb71bd21a851022d0ef26f"
+    },
+    {
+      "path": "gamdl/interface/music_video.py",
+      "sha256": "67e96013e2c4735bea3f2ae17c2aaf216b5f87554c0c8e4530054ad04118da46"
+    },
+    {
+      "path": "gamdl/interface/song.py",
+      "sha256": "1548c3bd9b562cee6c70a74acdd29e0c658c0da74a1c6c79691e9d4c711cc47e"
+    },
+    {
+      "path": "gamdl/interface/types.py",
+      "sha256": "3f356ea332a8ffefea8d1df6be804c24c25b7b5dee25b7d88b2e96f72a7799df"
+    },
+    {
+      "path": "gamdl/interface/uploaded_video.py",
+      "sha256": "a9bbe1549dd50a81c204afc1b2504ca8a8cedcae395098290c109cb429a2b6ed"
+    },
+    {
+      "path": "gamdl/interface/wvd.py",
+      "sha256": "26abedb40d971ce06d77eb2cadb38da272a686361fa596399d0c36e6144ca48b"
+    }
+  ]
+}

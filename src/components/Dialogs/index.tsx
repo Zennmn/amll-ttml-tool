@@ -1,3 +1,4 @@
+import { AppleMusicAudioDialog } from "$/modules/apple-music-audio/AppleMusicAudioDialog";
 import { LatencyTestDialog } from "$/modules/audio/modals/LatencyTest.tsx";
 import { ImportFromLRCLIB } from "$/modules/lrclib/modals/ImportDialog.tsx";
 import { ReplaceWordDialog } from "$/modules/lyric-editor/tools/ReplaceWordDialog.tsx";
@@ -13,6 +14,8 @@ import { TtmlLanguageDialog } from "$/modules/project/modals/TtmlLanguageDialog.
 import { AdvancedSegmentationDialog } from "$/modules/segmentation/components/AdvancedSegmentation.tsx";
 import { SplitWordDialog } from "$/modules/segmentation/components/split-word.tsx";
 import { SettingsDialog } from "$/modules/settings/modals/index.tsx";
+import { TimelineFormatDialog } from "$/modules/ttml-cleanup/TimelineFormatDialog.tsx";
+import { TranslationRemovalDialog } from "$/modules/ttml-cleanup/TranslationRemovalDialog.tsx";
 import { TtmlCleanupDialog } from "$/modules/ttml-cleanup/TtmlCleanupDialog.tsx";
 import { ConfirmationDialog } from "./confirmation.tsx";
 import { TtmlErrorDialog } from "./TtmlErrorDialog.tsx";
@@ -20,6 +23,7 @@ import { TtmlErrorDialog } from "./TtmlErrorDialog.tsx";
 export const Dialogs = () => {
 	return (
 		<>
+			<AppleMusicAudioDialog />
 			<ImportFromText />
 			<ImportFromLRCLIB />
 			<MetadataEditor />
@@ -36,6 +40,8 @@ export const Dialogs = () => {
 			<SyllableSmoothingDialog />
 			<ShortSyllableMergeDialog />
 			<TtmlCleanupDialog />
+			<TimelineFormatDialog />
+			<TranslationRemovalDialog />
 			<DistributeRomanizationDialog />
 			<TtmlErrorDialog />
 		</>

@@ -25,17 +25,10 @@ interface WordPiece {
 	background: boolean;
 }
 
-function splitBrackets(line: LyricLine): {
-	pieces: WordPiece[];
-	groups: number;
-	changed: boolean;
+function bracketSelection(chars: readonly string[]): {
+	matched: Set<number>;
+	selected: Uint8Array;
 } {
-	const chars: string[] = [];
-	const offsets: number[] = [];
-	for (const word of line.words) {
-		offsets.push(chars.length);
-		for (const char of word.word) chars.push(char);
-	}
 	const stack: { char: string; position: number }[] = [];
 	const matched = new Set<number>();
 	const deltas = new Int32Array(chars.length + 1);
@@ -51,18 +44,79 @@ function splitBrackets(line: LyricLine): {
 			deltas[position] -= 1;
 		}
 	});
-	if (!matched.size)
-		return {
-			pieces: line.words.map((word) => ({ word, background: line.isBG })),
-			groups: 0,
-			changed: false,
-		};
 	const selected = new Uint8Array(chars.length);
 	let depth = 0;
 	for (let index = 0; index < chars.length; index++) {
 		depth += deltas[index];
 		selected[index] = depth > 0 ? 1 : 0;
 	}
+	return { matched, selected };
+}
+
+function splitTranslation(text: string): {
+	main: string;
+	background: string;
+	unwrapped: string;
+} {
+	const chars = Array.from(text);
+	const { matched, selected } = bracketSelection(chars);
+	if (!matched.size) return { main: text, background: "", unwrapped: text };
+	const fragments: { text: string; background: boolean }[] = [];
+	chars.forEach((char, index) => {
+		if (matched.has(index)) return;
+		const background = selected[index] === 1;
+		const previous = fragments.at(-1);
+		if (previous?.background === background) previous.text += char;
+		else fragments.push({ text: char, background });
+	});
+	let main = "";
+	for (const fragment of fragments) {
+		if (fragment.background) continue;
+		// Normalize only the newly joined boundary, preserving spacing elsewhere.
+		if (/[ \t]$/u.test(main) && /^[ \t]/u.test(fragment.text)) {
+			main =
+				main.replace(/[ \t]+$/u, "") + fragment.text.replace(/^[ \t]+/u, " ");
+		} else {
+			if (
+				/[\p{Script=Latin}\p{N}]$/u.test(main) &&
+				/^[\p{Script=Latin}\p{N}]/u.test(fragment.text)
+			)
+				main += " ";
+			main += fragment.text;
+		}
+	}
+	return {
+		main: main.trim(),
+		background: fragments
+			.filter((fragment) => fragment.background)
+			.map((fragment) => fragment.text.trim())
+			.filter(Boolean)
+			.join(" "),
+		unwrapped: chars
+			.filter((_char, index) => !matched.has(index))
+			.join("")
+			.trim(),
+	};
+}
+
+function splitBrackets(line: LyricLine): {
+	pieces: WordPiece[];
+	groups: number;
+	changed: boolean;
+} {
+	const chars: string[] = [];
+	const offsets: number[] = [];
+	for (const word of line.words) {
+		offsets.push(chars.length);
+		for (const char of word.word) chars.push(char);
+	}
+	const { matched, selected } = bracketSelection(chars);
+	if (!matched.size)
+		return {
+			pieces: line.words.map((word) => ({ word, background: line.isBG })),
+			groups: 0,
+			changed: false,
+		};
 	const pieces: WordPiece[] = [];
 	for (const [wordIndex, word] of line.words.entries()) {
 		if (!word.word) {
@@ -147,7 +201,11 @@ function wordsFor(pieces: WordPiece[], background: boolean): LyricWord[] {
 	return words;
 }
 
-function backgroundLine(original: LyricLine, words: LyricWord[]): LyricLine {
+function backgroundLine(
+	original: LyricLine,
+	words: LyricWord[],
+	translatedLyric: string,
+): LyricLine {
 	const timed = words.filter(
 		(word) => word.startTime !== 0 || word.endTime !== 0,
 	);
@@ -157,7 +215,7 @@ function backgroundLine(original: LyricLine, words: LyricWord[]): LyricLine {
 		id: uid(),
 		isBG: true,
 		words,
-		translatedLyric: "",
+		translatedLyric,
 		romanLyric: "",
 		startTime: timed.length
 			? Math.min(...timed.map((word) => word.startTime))
@@ -197,16 +255,21 @@ export function cleanupEditorLyrics(
 		const main = wordsFor(merged.pieces, false);
 		const background = wordsFor(merged.pieces, true);
 		if (!background.length) return [{ ...line, words: main }];
+		const translation = splitTranslation(line.translatedLyric);
 		if (!main.some((word) => word.word.trim())) {
 			return [
 				{
 					...line,
 					words: merged.pieces.map((piece) => piece.word),
+					translatedLyric: translation.unwrapped,
 					isBG: true,
 				},
 			];
 		}
-		return [{ ...line, words: main }, backgroundLine(line, background)];
+		return [
+			{ ...line, words: main, translatedLyric: translation.main },
+			backgroundLine(line, background, translation.background),
+		];
 	});
 	return {
 		lyric: changed ? result : lyric,

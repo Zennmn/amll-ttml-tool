@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { createStore } from "jotai";
 import {
 	lyricLinesAtom,
@@ -260,7 +261,9 @@ test("HTTP failures and invalid JSON have actionable recoverable error codes", a
 	for (const [status, code] of [
 		[429, "rateLimited"],
 		[404, "notFound"],
-		[503, "network"],
+		[503, "serviceUnavailable"],
+		[403, "accessDenied"],
+		[408, "timeout"],
 	] as const) {
 		await assert.rejects(
 			fetchAppleMusicMetadata(songUrl, {
@@ -438,4 +441,246 @@ test("all imported fields form one undo step and preserve lyric timings, selecti
 	} finally {
 		stop();
 	}
+});
+
+test("desktop runtime selects the registered native command and keeps the exact link identity", async () => {
+	const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+	const previousMarker = Object.getOwnPropertyDescriptor(globalThis, "isTauri");
+	Object.defineProperty(globalThis, "window", {
+		configurable: true,
+		value: {},
+	});
+	Object.defineProperty(globalThis, "isTauri", {
+		configurable: true,
+		value: true,
+	});
+	let calls = 0;
+	mockIPC((command, args) => {
+		calls++;
+		assert.equal(command, "apple_music_metadata_lookup");
+		assert.deepEqual(args, { songId: link.songId, storefront: "tr" });
+		return { status: 200, body: JSON.stringify(lookup) };
+	});
+	try {
+		assert.deepEqual(
+			await fetchAppleMusicMetadata(songUrl, {
+				fetcher: async () => {
+					throw new Error("WebView request must not be used");
+				},
+			}),
+			preview,
+		);
+		assert.equal(calls, 1);
+	} finally {
+		clearMocks();
+		if (previousWindow)
+			Object.defineProperty(globalThis, "window", previousWindow);
+		else Reflect.deleteProperty(globalThis, "window");
+		if (previousMarker)
+			Object.defineProperty(globalThis, "isTauri", previousMarker);
+		else Reflect.deleteProperty(globalThis, "isTauri");
+	}
+});
+
+test("desktop native lookup succeeds without depending on a working WebView fetch", async () => {
+	const userLink = { storefront: "tr", songId: "1538283049" };
+	const userLookup = {
+		resultCount: 1,
+		results: [
+			{
+				...track,
+				trackId: 1538283049,
+				trackName: "Neiro Regards",
+				collectionName: "Answer",
+			},
+		],
+	};
+	let nativeCalls = 0;
+	let browserCalls = 0;
+	const result = await fetchAppleMusicMetadata(
+		"https://music.apple.com/tr/song/neiro-regards/1538283049",
+		{
+			nativeLookup: async (requested) => {
+				nativeCalls++;
+				assert.deepEqual(requested, userLink);
+				return { status: 200, body: JSON.stringify(userLookup) };
+			},
+			fetcher: async () => {
+				browserCalls++;
+				throw new TypeError("Failed to fetch");
+			},
+		},
+	);
+	assert.deepEqual(result, parseAppleMusicLookupResponse(userLookup, userLink));
+	assert.equal(nativeCalls, 1);
+	assert.equal(browserCalls, 0);
+});
+
+test("native transport failures and older desktop versions can fall back to the browser path", async () => {
+	for (const failure of [
+		{ code: "network" },
+		{ code: "timeout" },
+		"Command apple_music_metadata_lookup not found",
+	]) {
+		let calls = 0;
+		const result = await fetchAppleMusicMetadata(songUrl, {
+			nativeLookup: async () => {
+				throw failure;
+			},
+			fetcher: async (url, init) => {
+				calls++;
+				const request = new URL(String(url));
+				assert.equal(request.searchParams.get("id"), link.songId);
+				assert.equal(request.searchParams.get("country"), "tr");
+				assert.equal(init?.cache, "no-store");
+				assert.equal(init?.credentials, "omit");
+				return json(lookup);
+			},
+		});
+		assert.deepEqual(result, preview);
+		assert.equal(calls, 1);
+	}
+});
+
+test("an upstream denial keeps its specific error when the fallback transport also fails", async () => {
+	for (const [status, code] of [
+		[403, "accessDenied"],
+		[503, "serviceUnavailable"],
+	] as const) {
+		await assert.rejects(
+			fetchAppleMusicMetadata(songUrl, {
+				nativeLookup: async () => ({ status, body: "" }),
+				fetcher: async () => {
+					throw new TypeError("Failed to fetch");
+				},
+			}),
+			hasCode(code),
+		);
+	}
+});
+
+test("native no-result, mismatched IDs, rate limits and invalid bodies do not trigger another transport", async () => {
+	for (const [response, code] of [
+		[
+			{ status: 200, body: JSON.stringify({ resultCount: 0, results: [] }) },
+			"notFound",
+		],
+		[
+			{
+				status: 200,
+				body: JSON.stringify({ results: [{ ...track, trackId: 123 }] }),
+			},
+			"invalidResponse",
+		],
+		[{ status: 200, body: "<html>invalid</html>" }, "invalidResponse"],
+		[{ status: 200, body: " ".repeat(512 * 1024 + 1) }, "invalidResponse"],
+		[{ status: 429, body: "" }, "rateLimited"],
+	] as const) {
+		let calls = 0;
+		await assert.rejects(
+			fetchAppleMusicMetadata(songUrl, {
+				nativeLookup: async () => response,
+				fetcher: async () => {
+					calls++;
+					return json(lookup);
+				},
+			}),
+			hasCode(code),
+		);
+		assert.equal(calls, 0);
+	}
+});
+
+test("native commands that ignore cancellation still time out promptly", async () => {
+	await assert.rejects(
+		fetchAppleMusicMetadata(songUrl, {
+			nativeLookup: () => new Promise(() => {}),
+			fetcher: async () => json(lookup),
+			timeoutMs: 5,
+		}),
+		hasCode("timeout"),
+	);
+});
+
+test("cancelled native requests discard late results and never start a fallback", async () => {
+	let complete:
+		| ((response: { status: number; body: string }) => void)
+		| undefined;
+	let started: (() => void) | undefined;
+	const nativeStarted = new Promise<void>((resolve) => {
+		started = resolve;
+	});
+	const controller = new AbortController();
+	let browserCalls = 0;
+	const pending = fetchAppleMusicMetadata(songUrl, {
+		signal: controller.signal,
+		nativeLookup: () =>
+			new Promise((resolve) => {
+				complete = resolve;
+				started?.();
+			}),
+		fetcher: async () => {
+			browserCalls++;
+			return json(lookup);
+		},
+	});
+	await nativeStarted;
+	controller.abort();
+	await assert.rejects(pending, { name: "AbortError" });
+	complete?.({ status: 200, body: JSON.stringify(lookup) });
+	await new Promise<void>((resolve) => setImmediate(resolve));
+	assert.equal(browserCalls, 0);
+});
+
+test("transient browser failures retry once while permanent failures never retry", async () => {
+	let calls = 0;
+	assert.deepEqual(
+		await fetchAppleMusicMetadata(songUrl, {
+			fetcher: async () => {
+				if (++calls === 1) throw new TypeError("Failed to fetch");
+				return json(lookup);
+			},
+		}),
+		preview,
+	);
+	assert.equal(calls, 2);
+	for (const [status, code] of [
+		[404, "notFound"],
+		[403, "accessDenied"],
+		[429, "rateLimited"],
+	] as const) {
+		calls = 0;
+		await assert.rejects(
+			fetchAppleMusicMetadata(songUrl, {
+				fetcher: async () => {
+					calls++;
+					return json({}, status);
+				},
+			}),
+			hasCode(code),
+		);
+		assert.equal(calls, 1);
+	}
+});
+
+test("invalid links and already-cancelled requests never call native lookup", async () => {
+	let calls = 0;
+	const nativeLookup = async () => {
+		calls++;
+		return { status: 200, body: JSON.stringify(lookup) };
+	};
+	await assert.rejects(
+		fetchAppleMusicMetadata("https://example.com", { nativeLookup }),
+		hasCode("invalidLink"),
+	);
+	const controller = new AbortController();
+	controller.abort();
+	await assert.rejects(
+		fetchAppleMusicMetadata(songUrl, {
+			nativeLookup,
+			signal: controller.signal,
+		}),
+		{ name: "AbortError" },
+	);
+	assert.equal(calls, 0);
 });

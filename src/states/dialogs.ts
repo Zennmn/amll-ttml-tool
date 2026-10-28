@@ -8,6 +8,7 @@ export const hasDismissedSyllableSmoothingTipAtom = atomWithStorage(
 );
 
 export const importFromTextDialogAtom = atom(false);
+export const appleMusicAudioDialogAtom = atom(false);
 export const metadataEditorDialogAtom = atom(false);
 export const settingsDialogAtom = atom(false);
 export const settingsTabAtom = atom("common");
@@ -20,6 +21,8 @@ export const timeShiftDialogAtom = atom(false);
 export const syllableSmoothingDialogAtom = atom(false);
 export const shortSyllableMergeDialogAtom = atom(false);
 export const ttmlCleanupDialogAtom = atom(false);
+export const timelineFormatDialogAtom = atom(false);
+export const translationRemovalDialogAtom = atom(false);
 export const ttmlLanguageDialogAtom = atom(false);
 export const distributeRomanizationDialogAtom = atom(false);
 export const confirmDialogAtom = atom<{

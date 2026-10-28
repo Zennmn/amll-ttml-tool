@@ -32,6 +32,7 @@
 		}
 	},
 	"bundle": {
+		"resources": { "resources/apple-music-helper/": "apple-music-helper/" },
 		"category": "Utility",
 		"active": true,
 		"targets": "all",
