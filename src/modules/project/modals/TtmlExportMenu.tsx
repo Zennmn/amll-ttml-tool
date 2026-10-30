@@ -1,14 +1,16 @@
 import { DropdownMenu, Flex, Text } from "@radix-ui/themes";
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useTranslation } from "react-i18next";
 import {
 	ttmlLanguageAtom,
 	ttmlTimingModeAtom,
 } from "$/modules/settings/states";
 import type { TtmlTimingMode } from "$/modules/ttml-processor/export-options";
+import { resolvedTtmlLanguageAtom } from "$/modules/ttml-processor/language-state";
 import { ttmlLanguageDialogAtom } from "$/states/dialogs";
 
 const commonLanguages = new Set([
+	"auto",
 	"",
 	"en",
 	"zh-Hans",
@@ -37,6 +39,7 @@ export const TtmlExportMenu = () => {
 	const { t } = useTranslation();
 	const [timing, setTiming] = useAtom(ttmlTimingModeAtom);
 	const [language, setLanguage] = useAtom(ttmlLanguageAtom);
+	const resolvedLanguage = useAtomValue(resolvedTtmlLanguageAtom);
 	const setLanguageDialogOpen = useSetAtom(ttmlLanguageDialogAtom);
 
 	const timingLabels: Record<TtmlTimingMode, string> = {
@@ -82,7 +85,16 @@ export const TtmlExportMenu = () => {
 				<DropdownMenu.SubTrigger>
 					<SubmenuLabel
 						value={
-							language || t("settings.common.ttmlLanguageSource", "跟随原文件")
+							language === "auto"
+								? t(
+										"settings.common.ttmlLanguageAutoResult",
+										"自动（{language}）",
+										{
+											language: resolvedLanguage,
+										},
+									)
+								: language ||
+									t("settings.common.ttmlLanguageSource", "跟随原文件")
 						}
 					>
 						{t("settings.common.ttmlLanguage", "原文语言")}
@@ -96,6 +108,9 @@ export const TtmlExportMenu = () => {
 							setLanguage(value === "source" ? "" : value);
 						}}
 					>
+						<DropdownMenu.RadioItem value="auto">
+							{t("settings.common.ttmlLanguageAuto", "自动检测（默认）")}
+						</DropdownMenu.RadioItem>
 						<DropdownMenu.RadioItem value="source">
 							{t("settings.common.ttmlLanguageSource", "跟随原文件")}
 						</DropdownMenu.RadioItem>

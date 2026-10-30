@@ -5,6 +5,8 @@ import { normalizeTtmlLanguage } from "./export-options";
 test("an empty language selection follows the source document", () => {
 	assert.equal(normalizeTtmlLanguage(""), undefined);
 	assert.equal(normalizeTtmlLanguage("  "), undefined);
+	assert.equal(normalizeTtmlLanguage("auto"), undefined);
+	assert.equal(normalizeTtmlLanguage(" AUTO "), undefined);
 });
 
 test("language selections accept common languages and unknown language", () => {

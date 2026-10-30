@@ -79,6 +79,6 @@ export interface GeneratorConfig {
 	useAppleFormatRules: boolean;
 	format: boolean;
 	lineTiming: boolean;
-	/** Original lyric language override, applied by the TypeScript export layer. */
+	/** "auto" detects originals; "" follows source; other values override the root language. */
 	language?: string;
 }

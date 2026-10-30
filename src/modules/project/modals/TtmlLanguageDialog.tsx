@@ -12,14 +12,14 @@ const errorId = "ttml-language-dialog-error";
 const TtmlLanguageDialogContent = ({ onClose }: { onClose: () => void }) => {
 	const { t } = useTranslation();
 	const [language, setLanguage] = useAtom(ttmlLanguageAtom);
-	const [draft, setDraft] = useState(language);
+	const [draft, setDraft] = useState(language === "auto" ? "" : language);
 	const normalized = normalizeTtmlLanguage(draft);
 	const invalid = draft.trim() !== "" && !normalized;
 
 	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		if (invalid) return;
-		setLanguage(normalized ?? "");
+		setLanguage(normalized ?? "auto");
 		onClose();
 	};
 
@@ -35,7 +35,7 @@ const TtmlLanguageDialogContent = ({ onClose }: { onClose: () => void }) => {
 							<Dialog.Description id={descriptionId} size="2" color="gray">
 								{t(
 									"ttmlExportMenu.customLanguageDescription",
-									"设置 TTML 原文语言代码，例如 pt-BR。留空时跟随原文件，仅影响导出，不改变翻译语言。",
+									"设置当前工程的原文语言代码，例如 pt-BR。留空恢复自动检测，不改变翻译语言。",
 								)}
 							</Dialog.Description>
 						</Flex>
@@ -63,7 +63,7 @@ const TtmlLanguageDialogContent = ({ onClose }: { onClose: () => void }) => {
 								<Text id={errorId} size="1" color="red" role="alert">
 									{t(
 										"ttmlExportMenu.invalidLanguage",
-										"请输入有效的语言代码，例如 pt-BR，或留空以跟随原文件。",
+										"请输入有效的语言代码，例如 pt-BR，或留空恢复自动检测。",
 									)}
 								</Text>
 							)}

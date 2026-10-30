@@ -1,6 +1,6 @@
 import { LocalLanguage24Regular, Timer24Regular } from "@fluentui/react-icons";
 import { Flex, Select, Text, TextField } from "@radix-ui/themes";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -11,9 +11,11 @@ import {
 	normalizeTtmlLanguage,
 	type TtmlTimingMode,
 } from "$/modules/ttml-processor/export-options";
+import { resolvedTtmlLanguageAtom } from "$/modules/ttml-processor/language-state";
 import { SettingsRow } from "./SettingsGroup";
 
 const commonLanguages = new Set([
+	"auto",
 	"",
 	"en",
 	"zh-Hans",
@@ -27,8 +29,9 @@ export const TtmlExportOptions = () => {
 	const { t } = useTranslation();
 	const [timing, setTiming] = useAtom(ttmlTimingModeAtom);
 	const [language, setLanguage] = useAtom(ttmlLanguageAtom);
+	const resolvedLanguage = useAtomValue(resolvedTtmlLanguageAtom);
 	const [custom, setCustom] = useState(!commonLanguages.has(language));
-	const [draft, setDraft] = useState(language);
+	const [draft, setDraft] = useState(language === "auto" ? "" : language);
 	const invalid =
 		custom && draft.trim() !== "" && !normalizeTtmlLanguage(draft);
 	const timingTitle = t("settings.common.ttmlTiming", "TTML 计时模式");
@@ -68,7 +71,7 @@ export const TtmlExportOptions = () => {
 				title={languageTitle}
 				description={t(
 					"settings.common.ttmlLanguageDesc",
-					"跟随原文件，未知时使用 und。仅设置原文语言，不改变翻译语言。",
+					"默认在本地检测当前歌词原文。手动选择仅作用于当前工程，不改变翻译语言。",
 				)}
 				action={
 					<Flex
@@ -80,7 +83,7 @@ export const TtmlExportOptions = () => {
 							value={custom ? "custom" : language || "source"}
 							onValueChange={(value) => {
 								if (value === "custom") {
-									setDraft(language);
+									setDraft(language === "auto" ? "" : language);
 									setCustom(true);
 								} else {
 									setCustom(false);
@@ -90,6 +93,9 @@ export const TtmlExportOptions = () => {
 						>
 							<Select.Trigger aria-label={languageTitle} />
 							<Select.Content>
+								<Select.Item value="auto">
+									{t("settings.common.ttmlLanguageAuto", "自动检测（默认）")}
+								</Select.Item>
 								<Select.Item value="source">
 									{t("settings.common.ttmlLanguageSource", "跟随原文件")}
 								</Select.Item>
@@ -122,6 +128,17 @@ export const TtmlExportOptions = () => {
 								</Select.Item>
 							</Select.Content>
 						</Select.Root>
+						{language === "auto" && (
+							<Text size="1" color="gray">
+								{t(
+									"settings.common.ttmlLanguageAutoResult",
+									"自动（{language}）",
+									{
+										language: resolvedLanguage,
+									},
+								)}
+							</Text>
+						)}
 						{custom && (
 							<>
 								<TextField.Root
@@ -137,7 +154,7 @@ export const TtmlExportOptions = () => {
 										setDraft(value);
 										const normalized = normalizeTtmlLanguage(value);
 										if (!value.trim() || normalized)
-											setLanguage(normalized || "");
+											setLanguage(normalized || "auto");
 									}}
 								/>
 								{invalid && (

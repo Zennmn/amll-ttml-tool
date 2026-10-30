@@ -42,6 +42,7 @@
 		"@vercel/speed-insights": "^2.0.0",
 		"classnames": "^2.5.1",
 		"framer-motion": "^12.42.2",
+		"franc-min": "6.2.0",
 		"hyphen": "^1.14.1",
 		"i18next": "^26.3.6",
 		"i18next-icu": "^2.4.4",

@@ -13,7 +13,10 @@ import type {
 	TTMLMetadata as AppTTMLMetadata,
 } from "$/types/ttml";
 import { normalizeTtmlExport } from "./export-format";
-import { normalizeTtmlLanguage } from "./export-options";
+import {
+	resolveAmllOriginalLanguage,
+	resolveStructuredOriginalLanguage,
+} from "./language-options";
 import type {
 	AmllLyricLine,
 	AmllLyricResult,
@@ -70,7 +73,7 @@ export function getDefaultGeneratorConfig(): Partial<GeneratorConfig> {
 			TranslationOutputMode.AppleMusic,
 		lineTiming:
 			timingMode === "line" ? true : timingMode === "word" ? false : undefined,
-		language: normalizeTtmlLanguage(globalStore.get(ttmlLanguageAtom)),
+		language: globalStore.get(ttmlLanguageAtom),
 	};
 }
 
@@ -118,7 +121,7 @@ export function generateTTML(
 		success: true,
 		data: normalizeTtmlExport(generated.data, {
 			lineTiming,
-			language: normalizeTtmlLanguage(language ?? ""),
+			language: resolveStructuredOriginalLanguage(language, result),
 		}),
 	};
 }
@@ -320,7 +323,7 @@ export function amllToTTML(
 		success: true,
 		data: normalizeTtmlExport(generated.data, {
 			lineTiming,
-			language: normalizeTtmlLanguage(language ?? ""),
+			language: resolveAmllOriginalLanguage(language, amllResult),
 		}),
 	};
 }

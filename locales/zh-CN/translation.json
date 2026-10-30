@@ -41,8 +41,8 @@
 		}
 	},
 	"ttmlExportMenu": {
-		"customLanguageDescription": "设置 TTML 原文语言代码，例如 pt-BR。留空时跟随原文件，仅影响导出，不改变翻译语言。",
-		"invalidLanguage": "请输入有效的语言代码，例如 pt-BR，或留空以跟随原文件。"
+		"customLanguageDescription": "设置当前工程的原文语言代码，例如 pt-BR。留空恢复自动检测，不改变翻译语言。",
+		"invalidLanguage": "请输入有效的语言代码，例如 pt-BR，或留空恢复自动检测。"
 	},
 	"ttmlCleanup": {
 		"menu": "整理当前歌词...",
@@ -244,7 +244,9 @@
 			"ttmlTimingWord": "逐词（Word）",
 			"ttmlTimingLine": "逐行（Line）",
 			"ttmlLanguage": "原文语言",
-			"ttmlLanguageDesc": "跟随原文件，未知时使用 und。仅设置原文语言，不改变翻译语言。",
+			"ttmlLanguageDesc": "默认在本地检测当前歌词原文。手动选择仅作用于当前工程，不改变翻译语言。",
+			"ttmlLanguageAuto": "自动检测（默认）",
+			"ttmlLanguageAutoResult": "自动（{language}）",
 			"ttmlLanguageSource": "跟随原文件",
 			"ttmlLanguageEn": "英语（en）",
 			"ttmlLanguageZhHans": "简体中文（zh-Hans）",

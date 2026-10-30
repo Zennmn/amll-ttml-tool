@@ -41,8 +41,8 @@
 		}
 	},
 	"ttmlExportMenu": {
-		"customLanguageDescription": "Set the TTML original language code, for example pt-BR. Leave blank to follow the source file. This only affects exports and does not change translation languages.",
-		"invalidLanguage": "Enter a valid language code, for example pt-BR, or leave blank to follow the source file."
+		"customLanguageDescription": "Set the original language for this project, for example pt-BR. Leave blank to restore automatic detection. Translation languages stay the same.",
+		"invalidLanguage": "Enter a valid language code, for example pt-BR, or leave blank to restore automatic detection."
 	},
 	"ttmlCleanup": {
 		"menu": "Clean up current lyrics...",
@@ -244,7 +244,9 @@
 			"ttmlTimingWord": "Word",
 			"ttmlTimingLine": "Line",
 			"ttmlLanguage": "Original language",
-			"ttmlLanguageDesc": "Follow the source file, using und when unknown. This does not change translation languages.",
+			"ttmlLanguageDesc": "Detect original lyrics locally by default. Manual choices apply to this project and do not change translation languages.",
+			"ttmlLanguageAuto": "Detect automatically (default)",
+			"ttmlLanguageAutoResult": "Auto ({language})",
 			"ttmlLanguageSource": "Follow source file",
 			"ttmlLanguageEn": "English (en)",
 			"ttmlLanguageZhHans": "Simplified Chinese (zh-Hans)",

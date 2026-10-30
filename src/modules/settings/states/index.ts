@@ -43,9 +43,7 @@ export const ttmlTimingModeAtom = atomWithStorage<TtmlTimingMode>(
 	{ getOnInit: true },
 );
 
-export const ttmlLanguageAtom = atomWithStorage("ttmlLanguage", "", undefined, {
-	getOnInit: true,
-});
+export { ttmlLanguageAtom } from "$/modules/ttml-processor/language-state";
 
 export const showWordRomanizationInputAtom = atomWithStorage(
 	"showWordRomanizationInput",
