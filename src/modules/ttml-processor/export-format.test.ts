@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import { normalizeTtmlExport } from "./export-format";
+import type { AmllLyricResult } from "./types";
 
 Object.assign(globalThis, { DOMParser, XMLSerializer });
 
@@ -9,6 +11,21 @@ const TT = "http://www.w3.org/ns/ttml";
 const ITUNES = "http://music.apple.com/lyric-ttml-internal";
 const XML = "http://www.w3.org/XML/1998/namespace";
 const TTM = "http://www.w3.org/ns/ttml#metadata";
+
+type WasmResult<T> = { success: true; data: T } | { success: false };
+
+async function loadWasm() {
+	const bindings = await import("./wasm/ttml_processor_wasm_bg.js" as string);
+	const bytes = await readFile(
+		new URL("./wasm/ttml_processor_wasm_bg.wasm", import.meta.url),
+	);
+	const { instance } = await WebAssembly.instantiate(bytes, {
+		"./ttml_processor_wasm_bg.js": bindings,
+	});
+	bindings.__wbg_set_wasm(instance.exports);
+	(instance.exports.__wbindgen_start as () => void)();
+	return bindings;
+}
 
 function fixture(body = "", attributes = "", metadata = ""): string {
 	return `<tt xmlns="${TT}" xmlns:itunes="${ITUNES}" xmlns:ttm="${TTM}" ${attributes}><head><metadata>${metadata}</metadata></head><body>${body}</body></tt>`;
@@ -167,5 +184,73 @@ test("non-clock expressions and extension namespace attributes are preserved", (
 			.item(0)
 			?.getAttribute("begin"),
 		"1.000",
+	);
+});
+
+test("AMLL duet exports keep vocal roles through the vendored generator and parser", async () => {
+	const wasm = await loadWasm();
+	for (const order of [
+		[true, false],
+		[false, true],
+	]) {
+		const expected = order.map((isDuet) => ({
+			text: isDuet ? "Answer" : "Lead",
+			isDuet,
+		}));
+		const amll: AmllLyricResult = {
+			lyricLines: expected.map(({ text, isDuet }, i) => {
+				const startTime = i * 1_000;
+				const endTime = startTime + 1_000;
+				return {
+					words: [{ word: text, startTime, endTime }],
+					translatedLyric: "",
+					romanLyric: "",
+					isBG: false,
+					isDuet,
+					startTime,
+					endTime,
+				};
+			}),
+			metadata: [],
+		};
+		const generated = wasm.amllToTtml(amll, undefined, {
+			lineTiming: false,
+			useAppleFormatRules: false,
+		}) as WasmResult<string>;
+		assert.ok(generated.success);
+		const amllExport = normalizeTtmlExport(generated.data, {
+			lineTiming: false,
+			amllDuetAgent: true,
+		});
+		const agents = rootOf(amllExport).getElementsByTagNameNS(TTM, "agent");
+		assert.equal(agents.item(0)?.getAttribute("type"), "person");
+		assert.equal(agents.item(1)?.getAttribute("type"), "other");
+		const reimported = wasm.ttmlToAmll(
+			amllExport,
+			undefined,
+		) as WasmResult<AmllLyricResult>;
+		assert.ok(reimported.success);
+		assert.deepEqual(
+			reimported.data.lyricLines.map((parsed) => ({
+				text: parsed.words.map((word) => word.word).join(""),
+				isDuet: parsed.isDuet,
+			})),
+			expected,
+		);
+	}
+});
+
+test("external TTML exports leave non-AMLL vocal agents unchanged", () => {
+	const source = fixture(
+		'<div><p begin="0.000" end="1.000" itunes:key="L1" ttm:agent="v1"><span begin="0.000" end="1.000">Lead</span></p><p begin="1.000" end="2.000" itunes:key="L2" ttm:agent="v2"><span begin="1.000" end="2.000">Answer</span></p></div>',
+		"",
+		'<ttm:agent type="person" xml:id="v1"/><ttm:agent type="person" xml:id="v2"/>',
+	);
+	const exported = normalizeTtmlExport(source, { lineTiming: false });
+	assert.deepEqual(
+		Array.from(rootOf(exported).getElementsByTagNameNS(TTM, "agent")).map(
+			(agent) => agent.getAttribute("type"),
+		),
+		["person", "person"],
 	);
 });

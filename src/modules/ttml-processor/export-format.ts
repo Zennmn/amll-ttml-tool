@@ -1,4 +1,5 @@
 const TTML_NS = "http://www.w3.org/ns/ttml";
+const TTM_NS = "http://www.w3.org/ns/ttml#metadata";
 const ITUNES_NS = "http://music.apple.com/lyric-ttml-internal";
 const XML_NS = "http://www.w3.org/XML/1998/namespace";
 const XMLNS_NS = "http://www.w3.org/2000/xmlns/";
@@ -6,6 +7,8 @@ const XMLNS_NS = "http://www.w3.org/2000/xmlns/";
 interface ExportFormatOptions {
 	lineTiming: boolean;
 	language?: string;
+	/** The AMLL generator reserves v2 for lines marked as a duet. */
+	amllDuetAgent?: boolean;
 }
 
 /** Use the reference lyric clock notation without changing the represented time. */
@@ -53,6 +56,15 @@ export function normalizeTtmlExport(
 			root.getAttributeNS(XML_NS, "lang")?.trim() ||
 			"und",
 	);
+	if (options.amllDuetAgent) {
+		for (const agent of Array.from(
+			root.getElementsByTagNameNS(TTM_NS, "agent"),
+		)) {
+			if (agent.getAttributeNS(XML_NS, "id") === "v2") {
+				agent.setAttribute("type", "other");
+			}
+		}
+	}
 
 	for (const element of [root, ...Array.from(root.getElementsByTagName("*"))]) {
 		if (element.namespaceURI !== TTML_NS && element.namespaceURI !== ITUNES_NS)

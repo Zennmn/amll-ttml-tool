@@ -324,6 +324,7 @@ export function amllToTTML(
 		data: normalizeTtmlExport(generated.data, {
 			lineTiming,
 			language: resolveAmllOriginalLanguage(language, amllResult),
+			amllDuetAgent: true,
 		}),
 	};
 }
