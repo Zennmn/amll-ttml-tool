@@ -21,16 +21,33 @@ async function initializeWasm() {
 	if (!wasmInitialized) {
 		wasmInitialized = (async () => {
 			await init();
-			await initThreadPool(navigator.hardwareConcurrency);
+			await initThreadPool(
+				Math.max(1, Math.min(navigator.hardwareConcurrency || 1, 8)),
+			);
 		})();
 	}
 	await wasmInitialized;
 }
 
 ctx.onmessage = async (event) => {
-	await initializeWasm();
-
 	const msg = event.data;
+	if (msg.type === "INIT") {
+		// Preserve a SET_PALETTE received while WASM initialization is pending.
+		currentPalette = null;
+	}
+	if (msg.type === "INIT" || msg.type === "GET_TILE") {
+		try {
+			await initializeWasm();
+		} catch (error) {
+			wasmInitialized = null;
+			ctx.postMessage({
+				type: "ERROR",
+				reqId: msg.type === "GET_TILE" ? msg.reqId : -1,
+				message: error instanceof Error ? error.message : String(error),
+			});
+			return;
+		}
+	}
 
 	opfsChannel.onmessage = (e) => {
 		if (e.data === "DEMAND_LOCK") {
@@ -47,7 +64,6 @@ ctx.onmessage = async (event) => {
 		case "INIT":
 			audioSampleRate = msg.sampleRate;
 			audioDuration = msg.duration;
-			currentPalette = null;
 
 			try {
 				const rootDir = await navigator.storage.getDirectory();

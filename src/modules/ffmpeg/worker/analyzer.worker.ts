@@ -16,7 +16,9 @@ async function getBpmWasm(): Promise<InitOutput> {
 	if (!bpmWasmInitPromise) {
 		bpmWasmInitPromise = (async () => {
 			const instance = await initBpmWasm();
-			await initThreadPool(navigator.hardwareConcurrency);
+			await initThreadPool(
+				Math.max(1, Math.min(navigator.hardwareConcurrency || 1, 8)),
+			);
 			return instance;
 		})();
 	}
@@ -43,8 +45,30 @@ const pcmWriteBuffer = new Float32Array(WRITE_BUFFER_CAPACITY);
 let pcmWriteOffset = 0;
 
 const TARGET_SAMPLE_RATE = 44100;
+const OPFS_LOCK_TIMEOUT_MS = 10_000;
 
 const opfsChannel = new BroadcastChannel("opfs-lock-channel");
+
+async function acquirePcmHandle(fileHandle: FileSystemFileHandle) {
+	const deadline = performance.now() + OPFS_LOCK_TIMEOUT_MS;
+	for (;;) {
+		try {
+			return await fileHandle.createSyncAccessHandle();
+		} catch (error) {
+			if (
+				!(error instanceof DOMException) ||
+				error.name !== "NoModificationAllowedError"
+			) {
+				throw error;
+			}
+			if (performance.now() >= deadline) {
+				throw new Error("Audio cache is busy. Please reload the audio file.");
+			}
+			opfsChannel.postMessage("DEMAND_LOCK");
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		}
+	}
+}
 
 const BATCH_TRIPLETS = 1000;
 const BUFFER_SIZE = BATCH_TRIPLETS * 3;
@@ -146,7 +170,25 @@ async function initWasm(ffmpegWasmUrl: string): Promise<FFmpegAudioModule> {
 const yieldChannel = new MessageChannel();
 yieldChannel.port1.onmessage = () => analyzeLoop();
 
-async function analyzeLoop() {
+function analyzeLoop() {
+	void analyzeBatch().catch(failAnalysis);
+}
+
+function failAnalysis(error: unknown) {
+	isAnalyzing = false;
+	opfsAccessHandle?.close();
+	opfsAccessHandle = null;
+	if (decoderPtr && ffmpegModule) {
+		ffmpegModule._wasm_decoder_destroy(decoderPtr);
+		decoderPtr = 0;
+	}
+	self.postMessage({
+		type: "ANALYZE_ERROR",
+		payload: { error: getErrorMessage(error) },
+	});
+}
+
+async function analyzeBatch() {
 	if (!isAnalyzing || !ffmpegModule || decoderPtr === 0) return;
 	const BATCH_FRAMES = 1000;
 
@@ -228,22 +270,37 @@ async function analyzeLoop() {
 			}
 
 			opfsAccessHandle.flush();
+			let pcmBytes: Uint8Array | null = null;
+			try {
+				const buffer = new Uint8Array(
+					totalSamples * Float32Array.BYTES_PER_ELEMENT,
+				);
+				const bytesRead = opfsAccessHandle.read(buffer, { at: 0 });
+				pcmBytes = buffer.subarray(0, bytesRead);
+			} catch (error) {
+				bpmErrorMsg = getErrorMessage(error);
+			}
+			opfsAccessHandle.close();
+			opfsAccessHandle = null;
 
-			if (totalSamples > 0) {
+			// The spectrogram only needs the decoded PCM cache. BPM analysis is
+			// optional and must not keep the cache locked or block rendering.
+			self.postMessage({ type: "PCM_READY" });
+
+			if (totalSamples > 0 && pcmBytes) {
 				try {
 					const wasmInstance = await getBpmWasm();
 					const analyzer = new BpmAnalyzer(totalSamples, {
 						sampleRate: TARGET_SAMPLE_RATE,
 					});
 
-					const uint8View = new Uint8Array(
+					const pcmView = new Uint8Array(
 						wasmInstance.memory.buffer,
 						analyzer.byte_ptr,
 						analyzer.byte_capacity,
 					);
-
-					const bytesRead = opfsAccessHandle.read(uint8View, { at: 0 });
-					const samplesRead = Math.floor(bytesRead / 4);
+					pcmView.set(pcmBytes);
+					const samplesRead = Math.floor(pcmBytes.byteLength / 4);
 
 					analyzer.set_length(samplesRead);
 
@@ -257,9 +314,6 @@ async function analyzeLoop() {
 					bpmErrorMsg = getErrorMessage(bpmErr);
 				}
 			}
-
-			opfsAccessHandle.close();
-			opfsAccessHandle = null;
 		}
 
 		if (bpmResult) {
@@ -310,23 +364,23 @@ self.onmessage = async (e: MessageEvent) => {
 			};
 		}
 
-		if (file.size < THRESHOLD_50MB) {
-			const arrayBuffer = await file.arrayBuffer();
-			audioData = new Uint8Array(arrayBuffer);
-			audioFile = null;
-		} else {
-			audioFile = file;
-			audioData = null;
-		}
-
 		try {
+			if (file.size < THRESHOLD_50MB) {
+				const arrayBuffer = await file.arrayBuffer();
+				audioData = new Uint8Array(arrayBuffer);
+				audioFile = null;
+			} else {
+				audioFile = file;
+				audioData = null;
+			}
+
 			const rootDir = await navigator.storage.getDirectory();
 			const fileHandle = await rootDir.getFileHandle("audio_cache.pcm", {
 				create: true,
 			});
 
 			const acquireLockAndInit = async () => {
-				opfsAccessHandle = await fileHandle.createSyncAccessHandle();
+				opfsAccessHandle = await acquirePcmHandle(fileHandle);
 				opfsAccessHandle.truncate(0);
 				pcmWriteOffset = 0;
 
@@ -347,22 +401,7 @@ self.onmessage = async (e: MessageEvent) => {
 				analyzeLoop();
 			};
 
-			try {
-				await acquireLockAndInit();
-			} catch (e) {
-				if ((e as Error).name === "NoModificationAllowedError") {
-					opfsChannel.onmessage = async (e) => {
-						if (e.data === "OPFS_RELEASED") {
-							opfsChannel.onmessage = null;
-							await acquireLockAndInit();
-						}
-					};
-
-					opfsChannel.postMessage("DEMAND_LOCK");
-				} else {
-					throw e;
-				}
-			}
+			await acquireLockAndInit();
 		} catch (err) {
 			console.error("[Analyzer] Init Failed:", err);
 

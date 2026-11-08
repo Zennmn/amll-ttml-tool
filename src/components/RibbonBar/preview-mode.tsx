@@ -67,6 +67,7 @@ export const PreviewModeRibbonBar = forwardRef<HTMLDivElement>(
 							{t("ribbonBar.previewMode.fadeWidth", "过渡宽度")}
 						</Text>
 						<TextField.Root
+							key={lyricWordFadeWidth}
 							min={0}
 							step={0}
 							size="1"

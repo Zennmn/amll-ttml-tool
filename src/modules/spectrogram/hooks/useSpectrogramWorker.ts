@@ -1,4 +1,6 @@
+import { useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { pcmDataErrorAtom } from "$/modules/audio/states";
 import { LRUCache } from "$/modules/spectrogram/utils/lru-cache";
 import type {
 	SpectrogramWorker,
@@ -20,6 +22,7 @@ export type TileEntry = {
 class SpectrogramWorkerClient {
 	private worker: SpectrogramWorker;
 	private reqIdCounter = 0;
+	private closed = false;
 	private pendingRequests = new Map<
 		number,
 		{
@@ -28,17 +31,41 @@ class SpectrogramWorkerClient {
 		}
 	>();
 	private onInitCompleteCallback?: () => void;
+	private onErrorCallback?: (message: string) => void;
 
-	constructor(onInitComplete?: () => void) {
+	constructor(
+		onInitComplete?: () => void,
+		onError?: (message: string) => void,
+	) {
 		this.onInitCompleteCallback = onInitComplete;
+		this.onErrorCallback = onError;
 		this.worker = new Worker(
 			new URL("../workers/spectrogram.worker.ts", import.meta.url),
 			{ type: "module" },
 		);
 		this.worker.onmessage = this.handleMessage.bind(this);
+		this.worker.onerror = (event) => {
+			this.handleError(event.message || "Spectrogram worker failed");
+		};
+		this.worker.onmessageerror = () => {
+			this.handleError("Invalid spectrogram worker response");
+		};
+	}
+
+	private rejectPending(error: Error) {
+		for (const request of this.pendingRequests.values()) {
+			request.reject(error);
+		}
+		this.pendingRequests.clear();
+	}
+
+	private handleError(message: string) {
+		this.rejectPending(new Error(message));
+		this.onErrorCallback?.(message);
 	}
 
 	private handleMessage(event: MessageEvent<WorkerResponse>) {
+		if (this.closed) return;
 		const msg = event.data;
 		if (msg.type === "INIT_COMPLETE") {
 			this.onInitCompleteCallback?.();
@@ -51,6 +78,10 @@ class SpectrogramWorkerClient {
 				msg.imageBitmap.close();
 			}
 		} else if (msg.type === "ERROR") {
+			if (msg.reqId === -1) {
+				this.handleError(msg.message);
+				return;
+			}
 			const request = this.pendingRequests.get(msg.reqId);
 			if (request) {
 				spectrogramLogger.warn(`Worker Error req ${msg.reqId}:`, msg.message);
@@ -85,8 +116,15 @@ class SpectrogramWorkerClient {
 	}
 
 	public terminate() {
+		if (this.closed) return;
+		this.closed = true;
+		this.worker.onmessage = null;
+		this.worker.onerror = null;
+		this.worker.onmessageerror = null;
 		this.worker.terminate();
-		this.pendingRequests.clear();
+		this.rejectPending(new Error("Spectrogram worker terminated"));
+		this.onInitCompleteCallback = undefined;
+		this.onErrorCallback = undefined;
 	}
 }
 
@@ -95,6 +133,7 @@ export const useSpectrogramWorker = (
 	durationInMs: number,
 	paletteData: Uint8Array,
 ) => {
+	const setPcmDataError = useSetAtom(pcmDataErrorAtom);
 	const clientRef = useRef<SpectrogramWorkerClient | null>(null);
 	const [isWorkerReady, setIsWorkerReady] = useState(false);
 	const tileCache = useRef<LRUCache<string, TileEntry>>(
@@ -114,40 +153,66 @@ export const useSpectrogramWorker = (
 	}, [paletteData]);
 
 	useEffect(() => {
-		const client = new SpectrogramWorkerClient(() => {
-			setIsWorkerReady(true);
-			setLastTileTimestamp(Date.now());
-		});
-		clientRef.current = client;
+		setIsWorkerReady(false);
+		if (!pcmDataReady || durationInMs <= 0) return;
 
-		if (paletteDataRef.current) {
-			client.setPalette(paletteDataRef.current);
-		}
-
-		return () => client.terminate();
-	}, []);
-
-	useEffect(() => {
-		if (pcmDataReady && clientRef.current && durationInMs > 0) {
+		let cancelled = false;
+		let client: SpectrogramWorkerClient | null = null;
+		const isCurrentClient = () =>
+			!cancelled && client !== null && clientRef.current === client;
+		const reportError = (error: unknown) => {
+			if (cancelled) return;
 			setIsWorkerReady(false);
-			tileCache.current.clear();
-			activeRequests.current.clear();
+			setPcmDataError(
+				error instanceof Error ? error.message : String(error),
+			);
+		};
 
-			const durationInSeconds = durationInMs / 1000;
-			clientRef.current.initAudio(44100, durationInSeconds);
+		tileCache.current.clear();
+		activeRequests.current.clear();
+
+		try {
+			client = new SpectrogramWorkerClient(
+				() => {
+					if (!isCurrentClient()) return;
+					setIsWorkerReady(true);
+					setLastTileTimestamp(Date.now());
+				},
+				(message) => {
+					if (!isCurrentClient()) return;
+					setIsWorkerReady(false);
+					setPcmDataError(message);
+				},
+			);
+			clientRef.current = client;
+			client.initAudio(44100, durationInMs / 1000);
 
 			if (paletteDataRef.current) {
-				clientRef.current.setPalette(paletteDataRef.current);
+				client.setPalette(paletteDataRef.current);
 			}
-		} else if (!pcmDataReady && clientRef.current) {
-			setIsWorkerReady(false);
-			clientRef.current.releaseAudio();
+		} catch (error) {
+			reportError(error);
+			if (client) {
+				if (clientRef.current === client) {
+					clientRef.current = null;
+				}
+				client.terminate();
+			}
 		}
-	}, [pcmDataReady, durationInMs]);
+
+		return () => {
+			cancelled = true;
+			if (clientRef.current === client) {
+				clientRef.current = null;
+			}
+			client?.terminate();
+		};
+	}, [pcmDataReady, durationInMs, setPcmDataError]);
 
 	const requestTileIfNeeded = useCallback(
 		async (params: TileGenerationParams) => {
-			if (!clientRef.current || !isWorkerReady) return;
+			const client = clientRef.current;
+			if (!client || !isWorkerReady) return;
 
 			const cacheKey = `tile-${params.tileIndex}`;
 			const requestFingerprint = `${params.tileIndex}-w${params.tileWidthPx}-h${params.height}-g${params.gain}-p${params.paletteId}`;
@@ -165,7 +230,11 @@ export const useSpectrogramWorker = (
 				activeRequests.current.add(requestFingerprint);
 
 				try {
-					const bitmap = await clientRef.current.getTile(params);
+					const bitmap = await client.getTile(params);
+					if (clientRef.current !== client) {
+						bitmap.close();
+						return;
+					}
 
 					tileCache.current.set(cacheKey, {
 						bitmap,
@@ -177,9 +246,13 @@ export const useSpectrogramWorker = (
 
 					setLastTileTimestamp(Date.now());
 				} catch (err) {
-					spectrogramLogger.error("生成频谱图瓦片失败", err);
+					if (clientRef.current === client) {
+						spectrogramLogger.error("生成频谱图瓦片失败", err);
+					}
 				} finally {
-					activeRequests.current.delete(requestFingerprint);
+					if (clientRef.current === client) {
+						activeRequests.current.delete(requestFingerprint);
+					}
 				}
 			}
 		},

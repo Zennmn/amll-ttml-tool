@@ -11,51 +11,93 @@
  * limitations under the License.
  */
 
-// Note: we use `wasm_bindgen_worker_`-prefixed message types to make sure
-// we can handle bundling into other files, which might happen to have their
-// own `postMessage`/`onmessage` communication channels.
-//
-// If we didn't take that into the account, we could send much simpler signals
-// like just `0` or whatever, but the code would be less resilient.
+import workerEntryUrl from './workerEntry.js?worker&url';
 
-function waitForMsgType(target, type) {
-  return new Promise(resolve => {
-    target.addEventListener('message', function onMsg({ data }) {
-      if (data?.type !== type) return;
-      target.removeEventListener('message', onMsg);
-      resolve(data);
-    });
-  });
+const DEFAULT_WORKER_STARTUP_TIMEOUT_MS = 15_000;
+const TAURI_CUSTOM_PROTOCOL_HOST = 'tauri.localhost';
+
+function createWorkerEntry() {
+  const entryUrl = new URL(workerEntryUrl, import.meta.url).href;
+
+  // WebView2 does not load a custom-protocol module worker when it is
+  // constructed from inside another dedicated Worker. A Blob bootstrap can
+  // import that entry by absolute URL and preserves its module graph.
+  if (location.hostname !== TAURI_CUSTOM_PROTOCOL_HOST) {
+    return {
+      worker: new Worker(entryUrl, { type: 'module' }),
+      bootstrapUrl: null
+    };
+  }
+
+  const bootstrapUrl = URL.createObjectURL(
+    new Blob([`import ${JSON.stringify(entryUrl)};`], {
+      type: 'text/javascript'
+    })
+  );
+
+  try {
+    return {
+      worker: new Worker(bootstrapUrl, { type: 'module' }),
+      bootstrapUrl
+    };
+  } catch (error) {
+    URL.revokeObjectURL(bootstrapUrl);
+    throw error;
+  }
 }
 
-waitForMsgType(self, 'wasm_bindgen_worker_init').then(async ({ init, receiver }) => {
-  // # Note 1
-  // Our JS should have been generated in
-  // `[out-dir]/snippets/wasm-bindgen-rayon-[hash]/workerHelpers.js`,
-  // resolve the main module via `../../..`.
-  //
-  // This might need updating if the generated structure changes on wasm-bindgen
-  // side ever in the future, but works well with bundlers today. The whole
-  // point of this crate, after all, is to abstract away unstable features
-  // and temporary bugs so that you don't need to deal with them in your code.
-  //
-  // # Note 2
-  // This could be a regular import, but then some bundlers complain about
-  // circular deps.
-  //
-  // Dynamic import could be cheap if this file was inlined into the parent,
-  // which would require us just using `../../..` in `new Worker` below,
-  // but that doesn't work because wasm-pack unconditionally adds
-  // "sideEffects":false (see below).
-  //
-  // OTOH, even though it can't be inlined, it should be still reasonably
-  // cheap since the requested file is already in cache (it was loaded by
-  // the main thread).
-  const pkg = await import('../../..');
-  await pkg.default(init);
-  postMessage({ type: 'wasm_bindgen_worker_ready' });
-  pkg.wbg_rayon_start_worker(receiver);
-});
+function waitForWorkerStart(worker, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let timeout;
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      worker.removeEventListener('message', onMessage);
+      worker.removeEventListener('error', onError);
+      worker.removeEventListener('messageerror', onMessageError);
+    };
+    const fail = error => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      worker.terminate();
+      reject(error);
+    };
+    const succeed = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+
+    function onMessage({ data }) {
+      if (data?.type === 'wasm_bindgen_worker_error') {
+        const detail = data.message ? `: ${data.message}` : '';
+        fail(new Error(`Worker failed during startup${detail}`));
+      } else if (data?.type === 'wasm_bindgen_worker_ready') {
+        succeed();
+      }
+    }
+    function onError(event) {
+      const detail =
+        typeof event?.message === 'string' && event.message
+          ? `: ${event.message}`
+          : '';
+      fail(new Error(`Worker failed before startup${detail}`));
+    }
+    function onMessageError() {
+      fail(new Error('Worker message could not be deserialized during startup'));
+    }
+
+    worker.addEventListener('message', onMessage);
+    worker.addEventListener('error', onError);
+    worker.addEventListener('messageerror', onMessageError);
+    timeout = setTimeout(() => {
+      fail(new Error(`Worker startup timed out after ${timeoutMs} ms`));
+    }, timeoutMs);
+  });
+}
 
 // Note: this is never used, but necessary to prevent a bug in Firefox
 // (https://bugzilla.mozilla.org/show_bug.cgi?id=1702191) where it collects
@@ -66,7 +108,12 @@ waitForMsgType(self, 'wasm_bindgen_worker_init').then(async ({ init, receiver })
 // prevent them from getting GC-d.
 let _workers;
 
-export async function startWorkers(module, memory, builder) {
+export async function startWorkers(
+  module,
+  memory,
+  builder,
+  startupTimeoutMs = DEFAULT_WORKER_STARTUP_TIMEOUT_MS
+) {
   if (builder.numThreads() === 0) {
     throw new Error(`num_threads must be > 0.`);
   }
@@ -77,31 +124,43 @@ export async function startWorkers(module, memory, builder) {
     receiver: builder.receiver()
   };
 
-  _workers = await Promise.all(
-    Array.from({ length: builder.numThreads() }, async () => {
-      // Self-spawn into a new Worker.
-      //
-      // TODO: while `new URL('...', import.meta.url) becomes a semi-standard
-      // way to get asset URLs relative to the module across various bundlers
-      // and browser, ideally we should switch to `import.meta.resolve`
-      // once it becomes a standard.
-      //
-      // Note: we could use `../../..` as the URL here to inline workerHelpers.js
-      // into the parent entry instead of creating another split point -
-      // this would be preferable from optimization perspective -
-      // however, Webpack then eliminates all message handler code
-      // because wasm-pack produces "sideEffects":false in package.json
-      // unconditionally.
-      //
-      // The only way to work around that is to have side effect code
-      // in an entry point such as Worker file itself.
-      const worker = new Worker(new URL('./workerHelpers.js', import.meta.url), {
-        type: 'module'
-      });
-      worker.postMessage(workerInit);
-      await waitForMsgType(worker, 'wasm_bindgen_worker_ready');
-      return worker;
-    })
-  );
-  builder.build();
+  const timeoutMs =
+    Number.isFinite(startupTimeoutMs) && startupTimeoutMs > 0
+      ? startupTimeoutMs
+      : DEFAULT_WORKER_STARTUP_TIMEOUT_MS;
+  const workerEntries = [];
+
+  try {
+    for (let index = 0; index < builder.numThreads(); index += 1) {
+      // Keep the pool entry separate from this exported controller. If the
+      // worker points back at workerHelpers.js while that module is shared
+      // with the analyzer, Vite rewrites the URL to self.location.href and the
+      // child can resolve to the outer analyzer instead of the helper entry.
+      workerEntries.push(createWorkerEntry());
+    }
+    _workers = workerEntries.map(({ worker }) => worker);
+
+    await Promise.all(
+      workerEntries.map(async ({ worker, bootstrapUrl }) => {
+        try {
+          worker.postMessage(workerInit);
+          await waitForWorkerStart(worker, timeoutMs);
+        } finally {
+          if (bootstrapUrl) URL.revokeObjectURL(bootstrapUrl);
+        }
+      })
+    );
+    builder.build();
+  } catch (error) {
+    _workers = undefined;
+    for (const { worker, bootstrapUrl } of workerEntries) {
+      if (bootstrapUrl) URL.revokeObjectURL(bootstrapUrl);
+      try {
+        worker.terminate();
+      } catch {
+        // A failed Worker may already have been terminated by waitForWorkerStart.
+      }
+    }
+    throw error instanceof Error ? error : new Error(String(error));
+  }
 }

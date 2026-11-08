@@ -31,6 +31,8 @@ import {
 	audioEngineStateAtom,
 	currentDurationAtom,
 	isAuditioningAtom,
+	loadedAudioAtom,
+	pcmDataErrorAtom,
 	pcmDataReadyAtom,
 } from "$/modules/audio/states/index.ts";
 import { useScrubbing } from "$/modules/spectrogram/hooks/useScrubbing";
@@ -69,8 +71,10 @@ const LOD_WIDTHS = [512, 1024, 2048, 4096, 8192];
 
 export const AudioSpectrogram: FC = () => {
 	const pcmDataReady = useAtomValue(pcmDataReadyAtom);
+	const pcmDataError = useAtomValue(pcmDataErrorAtom);
 	const currentDurationMs = useAtomValue(currentDurationAtom);
 	const engineState = useAtomValue(audioEngineStateAtom);
+	const loadedAudio = useAtomValue(loadedAudioAtom);
 	const selectedLines = useAtomValue(selectedLinesAtom);
 
 	const isAuditioning = useAtomValue(isAuditioningAtom);
@@ -388,6 +392,13 @@ export const AudioSpectrogram: FC = () => {
 		handleContainerMouseDown(event);
 	};
 
+	const audioLoaded =
+		loadedAudio.size > 0 ||
+		engineState === "loading" ||
+		engineState === "ready" ||
+		engineState === "paused" ||
+		engineState === "playing";
+
 	return (
 		<div
 			className={styles.spectrogramContainer}
@@ -437,7 +448,7 @@ export const AudioSpectrogram: FC = () => {
 				</div>
 
 				<div className={styles.mainContent}>
-					{!pcmDataReady ? (
+					{pcmDataError !== null ? (
 						<div className={styles.emptyState}>
 							<Flex direction="column" align="center" gap="3">
 								<MusicNote2Filled
@@ -445,7 +456,39 @@ export const AudioSpectrogram: FC = () => {
 									color="var(--gray-8)"
 									style={{ opacity: 0.5 }}
 								/>
-								{engineState === "loading" || engineState === "ready" ? (
+								<Text color="gray" size="3">
+									{t(
+										"spectrogram.decodeFailed",
+										"音频解码失败，请重试加载",
+									)}
+								</Text>
+								{pcmDataError && (
+									<Text
+										color="gray"
+										size="2"
+										style={{
+											maxWidth: 480,
+											textAlign: "center",
+											wordBreak: "break-word",
+										}}
+									>
+										{pcmDataError}
+									</Text>
+								)}
+								<Button variant="soft" onClick={handleLoadMusic}>
+									{t("spectrogram.retryLoadAudio", "重试加载音频")}
+								</Button>
+							</Flex>
+						</div>
+					) : !pcmDataReady ? (
+						<div className={styles.emptyState}>
+							<Flex direction="column" align="center" gap="3">
+								<MusicNote2Filled
+									fontSize={48}
+									color="var(--gray-8)"
+									style={{ opacity: 0.5 }}
+								/>
+								{audioLoaded ? (
 									<Text color="gray" size="3">
 										{t("spectrogram.decoding", "正在解码音频，请稍候...")}
 									</Text>

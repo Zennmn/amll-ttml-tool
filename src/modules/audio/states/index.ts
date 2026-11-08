@@ -36,6 +36,7 @@ export const currentDurationAtom = atom(0);
 export const isAuditioningAtom = atom(false);
 export const audioErrorAtom = atom<string | null>(null);
 export const pcmDataReadyAtom = atom(false);
+export const pcmDataErrorAtom = atom<string | null>(null);
 
 export type BpmTapMode = "off" | "key" | "spectrogram";
 export const bpmTapModeAtom = atom<BpmTapMode>("off");
