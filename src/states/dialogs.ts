@@ -1,5 +1,5 @@
 import { atom } from "jotai";
-import { atomWithStorage } from "jotai/utils";
+import { atomWithStorage } from "$/utils/settings-storage";
 import type { JsError } from "$/modules/ttml-processor/types";
 
 export const hasDismissedSyllableSmoothingTipAtom = atomWithStorage(

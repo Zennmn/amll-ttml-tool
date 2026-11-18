@@ -1,5 +1,5 @@
 import { atom } from "jotai";
-import { atomWithStorage } from "jotai/utils";
+import { atomWithStorage } from "$/utils/settings-storage";
 import type { SyncPronunciationMode } from "$/modules/lyric-editor/utils/sync-pronunciation.ts";
 import type { TtmlTimingMode } from "$/modules/ttml-processor/export-options";
 

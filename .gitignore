@@ -12,6 +12,8 @@ dist
 dist-ssr
 dist-desktop
 /desktop-app/
+/desktop-app-settings-fix-*/
+/diagnostic-build/
 /public/dictionaries/kuromoji/
 *.local
 **/target

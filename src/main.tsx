@@ -27,7 +27,6 @@ import { globalStore } from "./states/store.ts";
 
 async function startApp() {
 	enableMapSet();
-
 	Sentry.init({
 		dsn: import.meta.env.SENTRY_DSN,
 		integrations: [],

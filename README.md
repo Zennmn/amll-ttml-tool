@@ -109,6 +109,8 @@ TTML 仓库源可按歌名、歌手或索引中的歌曲 ID 搜索；am-lyrics �
 
 默认 Apple Music 样式将逐行翻译写入 `<head>` 的 `iTunesMetadata`，翻译标为 `type="subtitle"`，通过 `for="L1"` 等行标识关联正文。设置中的 AMLL 样式继续使用行内翻译。演唱者编号和段落划分沿用现有编辑器行为。
 
+头部音译轨道会补齐 `xml:lang`：日语为 `ja-Latn`、韩语为 `ko-Latn`、中文为 `zh-Latn`，按最终导出的原文语言填写；原文语言未知时使用 `und-Latn`。已有明确的音译轨道语言标签会保留。
+
 验证导出声明、时间和内容保留：`pnpm test:ttml-export`。
 
 ## TTML 歌词整理

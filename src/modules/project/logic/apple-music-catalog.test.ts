@@ -58,8 +58,16 @@ const invalidResponse = (error: unknown) =>
 	error instanceof AppleMusicMetadataError && error.code === "invalidResponse";
 const value = (metadata: { key: string; value: string[] }[], key: string) =>
 	metadata.find((entry) => entry.key === key)?.value;
+const catalogWithComposer = (composerName: string) => ({
+	data: [
+		{
+			...catalog.data[0],
+			attributes: { ...attributes, composerName },
+		},
+	],
+});
 
-test("catalog response maps the exact song plus validated ISRC and whole composer display name", () => {
+test("catalog response maps the exact song plus validated ISRC and ordered songwriter values", () => {
 	const input = structuredClone(catalog);
 	const result = parseAppleMusicCatalogResponse(input, link);
 	assert.equal(result.retrievalMode, "enhanced");
@@ -88,8 +96,55 @@ test("catalog response maps the exact song plus validated ISRC and whole compose
 		link,
 	);
 	assert.deepEqual(value(named.metadata, "artists"), ["Earth, Wind & Fire"]);
-	assert.deepEqual(value(named.metadata, "songwriter"), ["One, Two & Three"]);
+	assert.deepEqual(value(named.metadata, "songwriter"), [
+		"One",
+		"Two",
+		"Three",
+	]);
 	assert.deepEqual(value(named.metadata, "isrc"), ["JPU902100426"]);
+});
+
+test("catalog composer splitting handles punctuation, spaced conjunctions and duplicates", () => {
+	const six = [
+		"Ali Tamposi",
+		"Andrew Watt",
+		"Brian D Lee",
+		"Brittany Tali Hazzard",
+		"Camila Cabello",
+		"Frank Dukes",
+	];
+	const parseSongwriters = (composerName: string) =>
+		value(
+			parseAppleMusicCatalogResponse(catalogWithComposer(composerName), link)
+				.metadata,
+			"songwriter",
+		);
+	assert.deepEqual(
+		parseSongwriters(
+			"Ali Tamposi, Andrew Watt, Brian D Lee, Brittany Tali Hazzard, Camila Cabello & Frank Dukes",
+		),
+		six,
+	);
+	assert.deepEqual(
+		parseSongwriters(" One， Two、 Three; Four & Five and Six, , One "),
+		["One", "Two", "Three", "Four", "Five", "Six"],
+	);
+});
+
+test("catalog composer splitting preserves single names, unspaced ampersands and suffixes", () => {
+	const parseSongwriters = (composerName: string) =>
+		value(
+			parseAppleMusicCatalogResponse(catalogWithComposer(composerName), link)
+				.metadata,
+			"songwriter",
+		);
+	for (const [composerName, expected] of [
+		["AC&ME", ["AC&ME"]],
+		["Harry Connick, Jr.", ["Harry Connick, Jr."]],
+		["Anderson", ["Anderson"]],
+		["Simon & Garfunkel", ["Simon", "Garfunkel"]],
+	] as const)
+		assert.deepEqual(parseSongwriters(composerName), expected);
 });
 
 test("missing or malformed optional catalog attributes never clear existing ISRC or credits", () => {
@@ -376,7 +431,12 @@ test("select-all includes every available field while defaults preserve manual I
 });
 
 test("six-field import uses one undo step and keeps current lyrics, selections and project identity", () => {
-	const preview = parseAppleMusicCatalogResponse(catalog, link);
+	const preview = parseAppleMusicCatalogResponse(
+		catalogWithComposer(
+			"Ali Tamposi, Andrew Watt, Brian D Lee, Brittany Tali Hazzard, Camila Cabello & Frank Dukes",
+		),
+		link,
+	);
 	const input: TTMLLyric = {
 		metadata: [{ key: "custom", value: ["keep"] }],
 		lyricLines: [
@@ -424,6 +484,14 @@ test("six-field import uses one undo step and keeps current lyrics, selections a
 		assert.equal(store.get(selectedLinesAtom), selected);
 		assert.deepEqual(value(imported.metadata, "custom"), ["keep"]);
 		assert.deepEqual(value(imported.metadata, "isrc"), ["JPU902100426"]);
+		assert.deepEqual(value(imported.metadata, "songwriter"), [
+			"Ali Tamposi",
+			"Andrew Watt",
+			"Brian D Lee",
+			"Brittany Tali Hazzard",
+			"Camila Cabello",
+			"Frank Dukes",
+		]);
 		store.set(undoLyricLinesAtom);
 		assert.equal(store.get(lyricLinesAtom), input);
 		assert.equal(store.get(undoableLyricLinesAtom).canUndo, false);

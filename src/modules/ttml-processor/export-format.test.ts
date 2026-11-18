@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import { normalizeTtmlExport } from "./export-format";
-import type { AmllLyricResult } from "./types";
+import type { AmllLyricResult, TTMLResult } from "./types";
 
 Object.assign(globalThis, { DOMParser, XMLSerializer });
 
@@ -14,17 +14,24 @@ const TTM = "http://www.w3.org/ns/ttml#metadata";
 
 type WasmResult<T> = { success: true; data: T } | { success: false };
 
-async function loadWasm() {
-	const bindings = await import("./wasm/ttml_processor_wasm_bg.js" as string);
-	const bytes = await readFile(
-		new URL("./wasm/ttml_processor_wasm_bg.wasm", import.meta.url),
-	);
-	const { instance } = await WebAssembly.instantiate(bytes, {
-		"./ttml_processor_wasm_bg.js": bindings,
-	});
-	bindings.__wbg_set_wasm(instance.exports);
-	(instance.exports.__wbindgen_start as () => void)();
-	return bindings;
+let wasmPromise:
+	| Promise<typeof import("./wasm/ttml_processor_wasm_bg.js")>
+	| undefined;
+
+function loadWasm() {
+	wasmPromise ??= (async () => {
+		const bindings = await import("./wasm/ttml_processor_wasm_bg.js" as string);
+		const bytes = await readFile(
+			new URL("./wasm/ttml_processor_wasm_bg.wasm", import.meta.url),
+		);
+		const { instance } = await WebAssembly.instantiate(bytes, {
+			"./ttml_processor_wasm_bg.js": bindings,
+		});
+		bindings.__wbg_set_wasm(instance.exports);
+		(instance.exports.__wbindgen_start as () => void)();
+		return bindings;
+	})();
+	return wasmPromise;
 }
 
 function fixture(body = "", attributes = "", metadata = ""): string {
@@ -253,4 +260,85 @@ test("external TTML exports leave non-AMLL vocal agents unchanged", () => {
 		),
 		["person", "person"],
 	);
+});
+
+test("generated romanization tracks carry selectable Latin-script language tags", async () => {
+	const wasm = await loadWasm();
+	for (const [language, expected] of [
+		["ja", "ja-Latn"],
+		["ko", "ko-Latn"],
+		["zh-Hans", "zh-Latn"],
+		["zh-Hant-TW", "zh-Latn-TW"],
+	]) {
+		const amll: AmllLyricResult = {
+			lyricLines: [
+				{
+					words: [
+						{ word: "君", romanWord: "kimi", startTime: 1000, endTime: 2000 },
+						{ word: "の", romanWord: "no", startTime: 2000, endTime: 3000 },
+					],
+					translatedLyric: "",
+					romanLyric: "kimi no",
+					isBG: false,
+					isDuet: false,
+					startTime: 1000,
+					endTime: 3000,
+				},
+			],
+			metadata: [{ key: "language", value: ["en"] }],
+		};
+		for (const [lineTiming, useAppleFormatRules] of [
+			[false, false],
+			[false, true],
+			[true, true],
+		]) {
+			const generated = wasm.amllToTtml(amll, undefined, {
+				lineTiming,
+				useAppleFormatRules,
+			}) as WasmResult<string>;
+			assert.ok(generated.success);
+			const exported = normalizeTtmlExport(generated.data, {
+				lineTiming,
+				language,
+			});
+			const parsed = wasm.parseTtml(exported) as WasmResult<TTMLResult>;
+			assert.ok(parsed.success);
+			assert.equal(parsed.data.lines[0].romanizations?.[0].language, expected);
+			const reimported = wasm.ttmlToAmll(exported, {
+				romanizationLanguage: expected,
+			}) as WasmResult<AmllLyricResult>;
+			assert.ok(reimported.success);
+			const importedLine = reimported.data.lyricLines[0];
+			if (lineTiming) {
+				assert.equal(importedLine.romanLyric, "kimi no");
+			} else {
+				assert.deepEqual(importedLine.words, amll.lyricLines[0].words);
+			}
+		}
+	}
+});
+
+test("unknown original languages fill only unlabeled tracks and preserve explicit tracks", () => {
+	const metadata = `<iTunesMetadata xmlns="${ITUNES}"><transliterations><transliteration xml:lang="ru-Latn"><text for="L1">privet</text></transliteration><transliteration xml:lang="ja-Kana"><text for="L1">きみ</text></transliteration><transliteration><text for="L1">kimi</text></transliteration><transliteration xml:lang=" "><text for="L1">no</text></transliteration></transliterations></iTunesMetadata>`;
+	for (const language of [undefined, "und", "not valid"]) {
+		const exported = normalizeTtmlExport(fixture("", "", metadata), {
+			lineTiming: false,
+			language,
+		});
+		const tracks = Array.from(
+			rootOf(exported).getElementsByTagNameNS(ITUNES, "transliteration"),
+		);
+		assert.deepEqual(
+			tracks.map((track) => track.getAttributeNS(XML, "lang")),
+			["ru-Latn", "ja-Kana", "und-Latn", "und-Latn"],
+		);
+		assert.deepEqual(
+			tracks.map((track) => track.textContent),
+			["privet", "きみ", "kimi", "no"],
+		);
+		assert.equal(
+			normalizeTtmlExport(exported, { lineTiming: false, language }),
+			exported,
+		);
+	}
 });

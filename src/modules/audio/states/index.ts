@@ -1,5 +1,5 @@
 import { atom } from "jotai/index";
-import { atomWithStorage } from "jotai/utils";
+import { atomWithStorage } from "$/utils/settings-storage";
 import type { EngineState, StretchAlgorithm } from "$/modules/ffmpeg/types.ts";
 import type { BpmAnalysisResult } from "$/modules/ffmpeg/worker/wasm/bpm-analyzer/bpm_analyzer_wasm";
 

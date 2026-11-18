@@ -10,7 +10,8 @@
  */
 
 import { atom } from "jotai";
-import { atomWithStorage, selectAtom } from "jotai/utils";
+import { selectAtom } from "jotai/utils";
+import { atomWithStorage } from "$/utils/settings-storage";
 import { REDO, UNDO, withHistory } from "jotai-history";
 import { uid } from "uid";
 import { identifyProject } from "$/modules/project/logic/project-info";

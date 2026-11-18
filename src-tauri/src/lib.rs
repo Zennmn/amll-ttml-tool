@@ -3,6 +3,7 @@ mod apple_music_catalog;
 mod apple_music_metadata;
 mod online_lyrics;
 mod preview_preferences;
+mod settings_storage;
 
 #[derive(serde::Serialize)]
 struct OpenFileData {
@@ -135,6 +136,8 @@ pub fn run() {
             online_lyrics_fetch,
             preview_preferences::preview_preference_read,
             preview_preferences::preview_preference_write,
+            settings_storage::setting_storage_read,
+            settings_storage::setting_storage_write,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

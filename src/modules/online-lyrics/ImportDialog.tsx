@@ -15,7 +15,7 @@ import {
 	TextField,
 } from "@radix-ui/themes";
 import { useAtom, useAtomValue, useStore } from "jotai";
-import { atomWithStorage } from "jotai/utils";
+import { atomWithStorage } from "$/utils/settings-storage";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";

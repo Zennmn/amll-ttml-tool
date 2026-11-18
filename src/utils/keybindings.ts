@@ -1,5 +1,5 @@
 import { atom, type createStore, useAtomValue } from "jotai";
-import { atomWithStorage } from "jotai/utils";
+import { atomWithStorage } from "$/utils/settings-storage";
 import { type DependencyList, useEffect } from "react";
 import { createLogger } from "./logger";
 

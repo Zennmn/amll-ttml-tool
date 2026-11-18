@@ -107,6 +107,21 @@ function record(value: unknown): value is Record<string, unknown> {
 const nonempty = (value: unknown) =>
 	typeof value === "string" ? value.trim() : "";
 
+function splitAppleMusicComposers(composer: string): string[] {
+	const names: string[] = [];
+	for (const part of composer.split(/[,，、;；]|\s+(?:&|and)\s+/i)) {
+		const name = part.trim();
+		if (!name) continue;
+		// Keep name suffixes with the preceding person (e.g. Harry Connick, Jr.).
+		if (names.length && /^(?:Jr\.?|Sr\.?|II|III|IV)$/i.test(name)) {
+			names[names.length - 1] += `, ${name}`;
+		} else {
+			names.push(name);
+		}
+	}
+	return [...new Set(names)];
+}
+
 export function parseAppleMusicLookupResponse(
 	data: unknown,
 	link: AppleMusicSongLink,
@@ -358,10 +373,13 @@ export function parseAppleMusicCatalogResponse(
 	const isrc = nonempty(attributes.isrc).replace(/-/g, "").toUpperCase();
 	if (/^[A-Z]{2}[A-Z0-9]{3}\d{7}$/.test(isrc))
 		metadata.push({ key: "isrc", value: [isrc] });
-	// Keep Apple's composer display string intact; this is not a complete lyricist list.
+	// Apple supplies composers as a display list; each person needs a metadata value.
 	const composer = nonempty(attributes.composerName);
-	if (composer && composer.length <= 4096)
-		metadata.push({ key: "songwriter", value: [composer] });
+	if (composer && composer.length <= 4096) {
+		const songwriters = splitAppleMusicComposers(composer);
+		if (songwriters.length)
+			metadata.push({ key: "songwriter", value: songwriters });
+	}
 	const artwork = record(attributes.artwork)
 		? nonempty(attributes.artwork.url)
 		: "";

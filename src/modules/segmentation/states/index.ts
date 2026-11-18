@@ -3,7 +3,7 @@
  */
 
 import { atom } from "jotai";
-import { atomWithStorage } from "jotai/utils";
+import { atomWithStorage } from "$/utils/settings-storage";
 
 type Scope = "all" | "range";
 type PunctuationMode = "merge" | "standalone";

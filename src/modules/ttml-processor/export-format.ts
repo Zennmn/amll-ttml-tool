@@ -29,6 +29,15 @@ function formatClock(value: string): string {
 	).padStart(3, "0")}`;
 }
 
+/** Romanization keeps the original language and locale, using the Latin script. */
+function getTransliterationLanguage(language: string): string {
+	try {
+		return new Intl.Locale(language, { script: "Latn" }).baseName;
+	} catch {
+		return "und-Latn";
+	}
+}
+
 /** Complete the shared WASM generator's XML declarations and clock formatting. */
 export function normalizeTtmlExport(
 	source: string,
@@ -49,13 +58,11 @@ export function normalizeTtmlExport(
 		"itunes:timing",
 		options.lineTiming ? "Line" : "Word",
 	);
-	root.setAttributeNS(
-		XML_NS,
-		"xml:lang",
+	const language =
 		options.language?.trim() ||
-			root.getAttributeNS(XML_NS, "lang")?.trim() ||
-			"und",
-	);
+		root.getAttributeNS(XML_NS, "lang")?.trim() ||
+		"und";
+	root.setAttributeNS(XML_NS, "xml:lang", language);
 	if (options.amllDuetAgent) {
 		for (const agent of Array.from(
 			root.getElementsByTagNameNS(TTM_NS, "agent"),
@@ -82,6 +89,17 @@ export function normalizeTtmlExport(
 		)) {
 			if (!translation.hasAttribute("type"))
 				translation.setAttribute("type", "subtitle");
+		}
+		for (const transliteration of Array.from(
+			metadata.getElementsByTagNameNS(ITUNES_NS, "transliteration"),
+		)) {
+			if (!transliteration.getAttributeNS(XML_NS, "lang")?.trim()) {
+				transliteration.setAttributeNS(
+					XML_NS,
+					"xml:lang",
+					getTransliterationLanguage(language),
+				);
+			}
 		}
 	}
 	const xml = new XMLSerializer()

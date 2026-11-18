@@ -1,7 +1,7 @@
 // 打轴设置
 
 import { atom } from "jotai";
-import { atomWithStorage } from "jotai/utils";
+import { atomWithStorage } from "$/utils/settings-storage";
 
 export interface Callback<Args extends unknown[], Result = void> {
 	onEmit?: (...args: Args) => Result;

@@ -10,7 +10,7 @@ import {
 	TextField,
 } from "@radix-ui/themes";
 import { atom, useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
-import { atomWithStorage } from "jotai/utils";
+import { atomWithStorage } from "$/utils/settings-storage";
 import { memo, type PropsWithChildren, useCallback } from "react";
 import { toast } from "react-toastify";
 import {

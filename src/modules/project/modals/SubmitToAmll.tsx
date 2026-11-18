@@ -13,7 +13,7 @@ import {
 } from "@radix-ui/themes";
 import type { TFunction } from "i18next";
 import { atom, useAtom, useAtomValue, useStore } from "jotai";
-import { atomWithStorage } from "jotai/utils";
+import { atomWithStorage } from "$/utils/settings-storage";
 import { memo, useCallback, useLayoutEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-toastify";
